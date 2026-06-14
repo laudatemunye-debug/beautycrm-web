@@ -73,7 +73,7 @@ export const useGoogle = () => {
   const uploadBackup = async (data) => {
     setSyncing(true); setError('');
     try {
-      if (!accessToken) { const ok = await refreshToken(); if (!ok) { setError("Reconnectez Google."); setSyncing(false); return false; } }
+      const ok = await refreshToken(); if (!ok) { setError("Reconnectez Google."); setSyncing(false); return false; }
       const json = JSON.stringify(data, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const existing = await findFile();
@@ -99,6 +99,7 @@ export const useGoogle = () => {
   const downloadBackup = async () => {
     setSyncing(true); setError('');
     try {
+      const ok = await refreshToken(); if (!ok) { setError("Reconnectez Google."); setSyncing(false); return null; }
       const file = await findFile();
       if (!file) { setError('Aucun backup trouve sur Drive.'); return null; }
       const res = await fetch(
