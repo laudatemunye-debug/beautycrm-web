@@ -1,0 +1,193 @@
+import { useState, useEffect } from "react";
+import { C, SECURITY_QUESTIONS, DEVISES } from '../theme';
+import { getSetting, setSetting, sha256 } from '../db/index';
+import { trackUser } from '../hooks/useTracker';
+import { FieldInput, PrimaryBtn, GhostBtn, PickerSelect } from '../components/UI';
+
+const PAYS_LIST = ["RDC","Cameroun","Cote dIvoire","Senegal","Mali","Burkina Faso","Niger","Togo","Benin","Guinee","Congo Brazzaville","Gabon","Rwanda","Burundi","Autre"];
+const ROLES = ["Distributeur","Revendeur","Agent","Grossiste","Autre"];
+const INDICATIFS = [
+  {pays:"RDC",code:"+243"},{pays:"Cameroun",code:"+237"},
+  {pays:"Cote dIvoire",code:"+225"},{pays:"Senegal",code:"+221"},
+  {pays:"Mali",code:"+223"},{pays:"Burkina Faso",code:"+226"},
+  {pays:"Niger",code:"+227"},{pays:"Togo",code:"+228"},
+  {pays:"Benin",code:"+229"},{pays:"Guinee",code:"+224"},
+  {pays:"Congo Brazzaville",code:"+242"},{pays:"Gabon",code:"+241"},
+  {pays:"Rwanda",code:"+250"},{pays:"Burundi",code:"+257"},
+  {pays:"Autre",code:"+00"},
+];
+
+const StepIndicator = ({ current, total }) => (
+  <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:24 }}>
+    {Array.from({length:total}).map((_,i) => (
+      <div key={i} style={{ width:i===current?24:8, height:8, borderRadius:4, backgroundColor:i<=current?C.accent:C.card_border, transition:'all 0.3s' }} />
+    ))}
+  </div>
+);
+
+export const LoginPage = ({ onSuccess }) => {
+  const [mode, setMode] = useState("login");
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [pw, setPw] = useState('');
+  const [nom, setNom] = useState('');
+  const [setupNom, setSetupNom] = useState('');
+  const [telephone, setTelephone] = useState('');
+  const [indicatif, setIndicatif] = useState('+243');
+  const [email, setEmail] = useState('');
+  const [pays, setPays] = useState('RDC');
+  const [ville, setVille] = useState('');
+  const [devise, setDevise] = useState(DEVISES[0].label);
+  const [entreprise, setEntreprise] = useState('');
+  const [role, setRole] = useState('Distributeur');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [secQ, setSecQ] = useState(SECURITY_QUESTIONS[0]);
+  const [secA, setSecA] = useState('');
+  const [secAInput, setSecAInput] = useState('');
+  const [resetPw, setResetPw] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+
+  useEffect(() => {
+    getSetting("password").then(p => { if (!p) setMode("setup"); }).catch(() => setMode("setup"));
+  }, []);
+
+  const onPaysChange = (p) => {
+    setPays(p);
+    const found = INDICATIFS.find(i => i.pays === p);
+    if (found) setIndicatif(found.code);
+  };
+
+  const handleLogin = async () => {
+    setError(''); setLoading(true);
+    try {
+      const stored = await getSetting("password");
+      if (!stored) { setMode("setup"); return; }
+      const storedNom = await getSetting("username");
+      if (storedNom && nom.trim().toLowerCase() !== storedNom.toLowerCase()) { setError("Nom incorrect."); return; }
+      const hash = await sha256(pw);
+      if (hash !== stored) { setError('Mot de passe incorrect.'); return; }
+      onSuccess(await getSetting('username') || 'Utilisateur');
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const nextStep = () => {
+    setError('');
+    if (step === 0 && !setupNom.trim()) { setError('Le nom est obligatoire.'); return; }
+    if (step === 3) { handleSetup(); return; }
+    setStep(s => s + 1);
+  };
+
+  const handleSetup = async () => {
+    setError('');
+    if (newPw.length < 4) { setError('Mot de passe trop court (min 4).'); return; }
+    if (newPw !== confirmPw) { setError('Mots de passe differents.'); return; }
+    if (!secA.trim()) { setError('Repondez a la question de securite.'); return; }
+    setLoading(true);
+    try {
+      await setSetting('password', await sha256(newPw));
+      await setSetting('username', setupNom.trim());
+      await setSetting('security_question', secQ);
+      await setSetting('security_answer', await sha256(secA.toLowerCase().trim()));
+      await setSetting('devise', devise);
+      await setSetting('entreprise', entreprise);
+      await setSetting('role', role);
+      await setSetting('pays', pays);
+      await setSetting('ville', ville);
+      await setSetting('telephone', indicatif + telephone);
+      await setSetting('email', email);
+      await trackUser({ nom: setupNom.trim(), email, telephone: indicatif+telephone, pays, ville, entreprise, role, devise });
+      const { DEVISES } = await import("../theme");
+      const found = DEVISES.find(d => d.label === devise);
+      if (found) window.__DEVISE_SYMBOL__ = found.symbol;
+      setMode("login");
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleReset = async () => {
+    setError('');
+    const storedA = await getSetting('security_answer');
+    const hashA = await sha256(secAInput.toLowerCase().trim());
+    if (hashA !== storedA) { setError('Reponse incorrecte.'); return; }
+    if (resetPw.length < 4) { setError('Mot de passe trop court.'); return; }
+    if (resetPw !== resetConfirm) { setError('Mots de passe differents.'); return; }
+    await setSetting('password', await sha256(resetPw));
+    setMode("login");
+  };
+
+  const STEP_TITLES = ['Identite','Localisation','Entreprise','Securite'];
+  const STEP_SUBS = ['Vos informations personnelles','Votre pays et devise','Votre activite','Votre mot de passe'];
+
+  return (
+    <div style={{ minHeight:'100vh', backgroundColor:C.sidebar_bg, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ backgroundColor:'#fff', borderRadius:24, padding:28, width:'100%', maxWidth:400, boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ textAlign:'center', marginBottom:24 }}>
+          <div style={{ width:72, height:72, borderRadius:20, backgroundColor:C.accent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 12px' }}>💄</div>
+          <div style={{ fontWeight:800, fontSize:20, color:C.text_primary }}>BeautyCRM</div>
+          <div style={{ fontSize:11, color:C.text_secondary, marginTop:2 }}>Ton Agenda Numerique</div>
+          {mode==='setup' && <div style={{ marginTop:8 }}><div style={{ fontWeight:700, fontSize:15, color:C.accent }}>{STEP_TITLES[step]}</div><div style={{ fontSize:12, color:C.text_secondary }}>{STEP_SUBS[step]}</div></div>}
+          {mode==='login' && <div style={{ color:C.text_secondary, fontSize:13, marginTop:4 }}>Connexion</div>}
+          {mode==='reset' && <div style={{ color:C.text_secondary, fontSize:13, marginTop:4 }}>Reinitialiser</div>}
+        </div>
+
+        {error && <div style={{ backgroundColor:C.danger+'15', border:`1px solid ${C.danger}`, borderRadius:10, padding:12, marginBottom:14, fontSize:13, color:C.danger }}>{error}</div>}
+
+        {mode==='login' && (<>
+          <FieldInput label="Nom d'utilisateur" value={nom} onChange={setNom} placeholder="Votre nom" />
+          <FieldInput label="Mot de passe" value={pw} onChange={setPw} type="password" placeholder="Votre mot de passe" />
+          <PrimaryBtn label="Se connecter" onClick={handleLogin} loading={loading} />
+          <div style={{ textAlign:'center', marginTop:14 }}>
+            <span onClick={() => setMode('reset')} style={{ color:C.accent, fontSize:13, cursor:'pointer', fontWeight:600 }}>Mot de passe oublie ?</span>
+          </div>
+        </>)}
+
+        {mode==='setup' && (<>
+          <StepIndicator current={step} total={4} />
+          {step===0 && (<>
+            <FieldInput label="Nom complet *" value={setupNom} onChange={setSetupNom} placeholder="Ex: Marie Dupont" />
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:C.text_secondary, fontWeight:600, marginBottom:6 }}>Telephone WhatsApp</div>
+              <div style={{ display:'flex', gap:8 }}>
+                <select value={indicatif} onChange={e => setIndicatif(e.target.value)} style={{ width:95, backgroundColor:C.input_bg, border:`1px solid ${C.input_border}`, borderRadius:10, padding:13, fontSize:12, color:C.text_primary, fontFamily:'inherit' }}>
+                  {INDICATIFS.map(i => <option key={i.code} value={i.code}>{i.code} {i.pays.slice(0,5)}</option>)}
+                </select>
+                <input value={telephone} onChange={e => setTelephone(e.target.value)} type="tel" placeholder="XXX XXX XXX" style={{ flex:1, backgroundColor:C.input_bg, border:`1px solid ${C.input_border}`, borderRadius:10, padding:13, fontSize:14, color:C.text_primary, fontFamily:'inherit', boxSizing:'border-box', outline:'none' }} />
+              </div>
+            </div>
+            <FieldInput label="Email" value={email} onChange={setEmail} type="email" placeholder="votre@email.com" />
+          </>)}
+          {step===1 && (<>
+            <PickerSelect label="Pays" value={pays} onChange={onPaysChange} options={PAYS_LIST} />
+            <FieldInput label="Ville" value={ville} onChange={setVille} placeholder="Ex: Kinshasa" />
+            <PickerSelect label="Devise de travail" value={devise} onChange={setDevise} options={DEVISES.map(d => d.label)} />
+          </>)}
+          {step===2 && (<>
+            <FieldInput label="Nom de votre entreprise" value={entreprise} onChange={setEntreprise} placeholder="Ex: Beauty Plus SARL" />
+            <PickerSelect label="Votre role" value={role} onChange={setRole} options={ROLES} />
+          </>)}
+          {step===3 && (<>
+            <FieldInput label="Mot de passe *" value={newPw} onChange={setNewPw} type="password" placeholder="Min 4 caracteres" />
+            <FieldInput label="Confirmer le mot de passe" value={confirmPw} onChange={setConfirmPw} type="password" />
+            <PickerSelect label="Question de securite" value={secQ} onChange={setSecQ} options={SECURITY_QUESTIONS} />
+            <FieldInput label="Reponse secrete" value={secA} onChange={setSecA} placeholder="Votre reponse" />
+          </>)}
+          <div style={{ display:'flex', gap:10, marginTop:8 }}>
+            {step>0 && <GhostBtn label="Retour" onClick={() => { setError(''); setStep(s=>s-1); }} style={{ flex:1 }} />}
+            <PrimaryBtn label={step===3?'Creer mon compte':'Suivant'} onClick={nextStep} loading={loading} style={{ flex:2 }} />
+          </div>
+        </>)}
+
+        {mode==='reset' && (<>
+          <FieldInput label="Reponse a la question de securite" value={secAInput} onChange={setSecAInput} />
+          <FieldInput label="Nouveau mot de passe" value={resetPw} onChange={setResetPw} type="password" />
+          <FieldInput label="Confirmer" value={resetConfirm} onChange={setResetConfirm} type="password" />
+          <PrimaryBtn label="Reinitialiser" onClick={handleReset} loading={loading} />
+          <GhostBtn label="Retour" onClick={() => setMode('login')} style={{ marginTop:10 }} />
+        </>)}
+      </div>
+    </div>
+  );
+};
