@@ -60,9 +60,20 @@ export const useGoogle = () => {
     return res.files?.[0] || null;
   };
 
+  const refreshToken = () => new Promise((resolve) => {
+    if (!tokenClient) { resolve(false); return; }
+    tokenClient.callback = async (response) => {
+      if (response.error) { resolve(false); return; }
+      accessToken = response.access_token;
+      resolve(true);
+    };
+    tokenClient.requestAccessToken({ prompt: "" });
+  });
+
   const uploadBackup = async (data) => {
     setSyncing(true); setError('');
     try {
+      if (!accessToken) { const ok = await refreshToken(); if (!ok) { setError("Reconnectez Google."); setSyncing(false); return false; } }
       const json = JSON.stringify(data, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const existing = await findFile();
