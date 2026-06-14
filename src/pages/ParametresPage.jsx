@@ -210,7 +210,7 @@ export const ParametresPage = ({ user, onLogout }) => {
             <div>
               <div style={{ backgroundColor: C.success+"15", borderRadius: 10, padding: 12, marginBottom: 14 }}>
                 <div style={{ fontSize: 13, color: C.success, fontWeight: 600 }}>🟢 Connecte</div>
-                <div style={{ fontSize: 11, color: C.text_secondary, marginTop: 2 }}>{googleUser}</div>
+                
               </div>
               <PrimaryBtn label={syncing ? "En cours..." : "⬆ Sauvegarder sur Drive"} onClick={async () => { const data = await exportAllData(); await uploadBackup(data); }} color={C.success} style={{ marginBottom: 10 }} disabled={syncing} />
               <PrimaryBtn label={syncing ? "..." : "⬇ Restaurer depuis Drive"} onClick={async () => { const { importAllData } = await import("../db/index"); const data = await downloadBackup(); if (data) { await importAllData(data); alert("Restauration reussie !"); } }} color={C.accent} style={{ marginBottom: 10 }} disabled={syncing} />
