@@ -209,7 +209,7 @@ export const ParametresPage = ({ user, onLogout }) => {
           {googleUser && !gError.includes("Session") ? (
             <div>
               <div style={{ backgroundColor: C.success+"15", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 13, color: C.success, fontWeight: 600 }}>🟢 Connecte</div>
+                <div style={{ fontSize: 13, color: C.success, fontWeight: 600 }}>🟢 {googleUser}</div>
                 
               </div>
               <PrimaryBtn label={syncing ? "En cours..." : "⬆ Sauvegarder sur Drive"} onClick={async () => { const data = await exportAllData(); await uploadBackup(data); }} color={C.success} style={{ marginBottom: 10 }} disabled={syncing} />
