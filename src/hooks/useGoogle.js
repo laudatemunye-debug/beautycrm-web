@@ -14,7 +14,7 @@ export const useGoogle = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getSetting('google_email').then(email => { if (email) setGoogleUser(email); });
+    getSetting("google_email").then(email => { if (email && email !== "null") setGoogleUser(email); });
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -49,7 +49,7 @@ export const useGoogle = () => {
     if (accessToken) window.google?.accounts.oauth2.revoke(accessToken);
     accessToken = null;
     setGoogleUser(null);
-    await setSetting('google_email', null);
+    await setSetting("google_email", "");
   };
 
   const findFile = async () => {
