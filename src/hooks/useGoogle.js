@@ -64,7 +64,9 @@ export const useGoogle = () => {
   };
 
   const authFetch = async (url, options = {}) => {
-    if (!accessToken) {
+    if (!accessToken) throw new Error("401");
+// removed - no auto reconnect
+    if (false) {
       const ok = await reconnect();
       if (!ok) throw new Error('401');
     }

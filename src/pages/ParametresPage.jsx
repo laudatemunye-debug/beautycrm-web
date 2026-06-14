@@ -206,7 +206,7 @@ export const ParametresPage = ({ user, onLogout }) => {
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible. Fichier: beautycrm-backup.json</div>
           {gError && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{gError}</div>}
-          {googleUser ? (
+          {googleUser && !gError.includes("Session") ? (
             <div>
               <div style={{ backgroundColor: C.success+"15", borderRadius: 10, padding: 12, marginBottom: 14 }}>
                 <div style={{ fontSize: 13, color: C.success, fontWeight: 600 }}>🟢 Connecte</div>
