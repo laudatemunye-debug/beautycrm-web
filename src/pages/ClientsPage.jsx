@@ -46,7 +46,7 @@ const ClientForm = ({ client, onClose, onSaved }) => {
           if (!("contacts" in navigator)) {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
             if (isIOS) { alert("Sur iPhone : tapez le nom et iOS vous proposera vos contacts automatiquement."); }
-            else { alert("Import contacts non disponible sur ce navigateur. Utilisez Chrome sur Android."); }
+            else { alert("Utilisez Chrome sur Android pour importer vos contacts."); }
             return;
           }
           try {
