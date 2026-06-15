@@ -28,7 +28,8 @@ export const useGoogle = () => {
           const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: 'Bearer ' + accessToken },
           }).then(r => r.json());
-          const email = info.email || 'Compte Google';
+          const email = info.email || '';
+          if (!email) { setError('Email non disponible.'); return; }
           setGoogleUser(email);
           await setSetting('google_email', email);
           setError('');
