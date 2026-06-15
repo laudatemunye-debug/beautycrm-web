@@ -26,3 +26,9 @@ if ('serviceWorker' in navigator) {
     window.location.reload();
   });
 }
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    e.preventDefault();
+  }
+});
