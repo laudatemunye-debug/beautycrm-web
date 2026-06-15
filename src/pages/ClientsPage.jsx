@@ -43,9 +43,9 @@ const ClientForm = ({ client, onClose, onSaved }) => {
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 14 }}>
         <div style={{ flex: 1, marginBottom: 0 }}><FieldInput label="Nom *" value={form.nom} onChange={v => setForm(f=>({...f,nom:v}))} placeholder="Nom du contact" autoComplete="name" /></div>
         <button onClick={async () => {
-          if (!("contacts" in navigator)) {
+          if (!navigator.contacts) {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            if (isIOS) { alert("Sur iPhone : tapez le nom et iOS vous proposera vos contacts automatiquement."); }
+            if (isIOS) { alert("Ouvrez cette page depuis beautycrm-ton-agenda-numerique.netlify.app sur Safari pour importer vos contacts."); }
             else { alert("Utilisez Chrome sur Android pour importer vos contacts."); }
             return;
           }
