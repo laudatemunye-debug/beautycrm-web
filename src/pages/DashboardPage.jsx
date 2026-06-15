@@ -68,7 +68,7 @@ export const DashboardPage = ({ onNavigate }) => {
         marginBottom: 16,
         color: '#fff',
       }}>
-        <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>CA du mois · Marge</div>
+        <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontSize:11, opacity:0.8 }}>CA du mois</span><span style={{ fontSize:11, opacity:0.8 }}>Marge</span></div>
         <div style={{ fontWeight: 800, fontSize: 22 }}>{fmtMoney(kpis.ca, getDeviseSymbol())} · {fmtMoney(kpis.marge, getDeviseSymbol())}</div>
       </div>
 
