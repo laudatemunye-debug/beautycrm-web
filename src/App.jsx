@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getSetting } from './db/index';
+import { getSetting, importAllData } from './db/index';
 import { useNetwork } from './hooks/useNetwork';
 import { useDevise } from './hooks/useDevise';
 import { useAnnonces } from './hooks/useAnnonces';
+import { useGoogle } from "./hooks/useGoogle";
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -26,6 +27,7 @@ export default function App() {
   const isOnline = useNetwork();
   useDevise();
   const { annonce, dismiss } = useAnnonces();
+  const { connect: googleConnect, downloadBackup, googleUser: gUser } = useGoogle();
 
   useEffect(() => {
     if (!annonce) return;
@@ -57,7 +59,7 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <LoginPage key={loginKey} onSuccess={setUser} />;
+  if (!user) return <LoginPage key={loginKey} onSuccess={setUser} googleConnect={googleConnect} downloadBackup={downloadBackup} googleUser={gUser} importAllData={importAllData} />;
 
   const renderPage = () => {
     switch(page) {

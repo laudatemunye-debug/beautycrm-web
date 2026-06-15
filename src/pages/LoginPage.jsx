@@ -25,8 +25,8 @@ const StepIndicator = ({ current, total }) => (
   </div>
 );
 
-export const LoginPage = ({ onSuccess }) => {
-  const [mode, setMode] = useState("login");
+export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser, importAllData }) => {
+  const [mode, setMode] = useState("welcome");
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export const LoginPage = ({ onSuccess }) => {
   const [resetConfirm, setResetConfirm] = useState('');
 
   useEffect(() => {
-    getSetting("password").then(p => { if (!p) setMode("setup"); }).catch(() => setMode("setup"));
+    getSetting("password").then(p => { if (p) setMode("login"); else setMode("welcome"); }).catch(() => setMode("welcome"));
   }, []);
 
   const onPaysChange = (p) => {
@@ -135,7 +135,15 @@ export const LoginPage = ({ onSuccess }) => {
 
         {error && <div style={{ backgroundColor:C.danger+'15', border:`1px solid ${C.danger}`, borderRadius:10, padding:12, marginBottom:14, fontSize:13, color:C.danger }}>{error}</div>}
 
-        {mode==='login' && (<>
+        {mode==="welcome" && (
+          <div style={{ textAlign:"center" }}>
+            <PrimaryBtn label="Creer un nouveau compte" onClick={() => setMode("setup")} style={{ marginBottom:12 }} />
+            <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
+            <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />
+          </div>
+        )}
+
+        {mode==="login" && (<>
           <FieldInput label="Nom d'utilisateur" value={nom} onChange={setNom} placeholder="Votre nom" />
           <FieldInput label="Mot de passe" value={pw} onChange={setPw} type="password" placeholder="Votre mot de passe" />
           <PrimaryBtn label="Se connecter" onClick={handleLogin} loading={loading} />
@@ -180,7 +188,33 @@ export const LoginPage = ({ onSuccess }) => {
           </div>
         </>)}
 
-        {mode==='reset' && (<>
+        {mode==="restore" && (
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>☁</div>
+            <div style={{ fontWeight:700, fontSize:16, color:C.text_primary, marginBottom:8 }}>Restaurer depuis Google Drive</div>
+            <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>Connectez votre compte Google pour restaurer vos donnees sur cet appareil.</div>
+            {googleUser ? (
+              <div style={{ backgroundColor: "#e8f5e9", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 13, color: "#2e7d32" }}>
+                🟢 {googleUser}
+              </div>
+            ) : null}
+            <PrimaryBtn label={googleUser ? "Restaurer mes donnees" : "Connecter Google Drive"} onClick={async () => {
+              if (!googleUser) { googleConnect && googleConnect(); return; }
+              try {
+                const data = await downloadBackup();
+                if (data) {
+                  await importAllData(data);
+                  setMode("login");
+                } else {
+                  alert("Aucun backup trouve sur Drive.");
+                }
+              } catch(e) { alert("Erreur : " + e.message); }
+            }} style={{ marginBottom:12 }} />
+            <GhostBtn label="Retour" onClick={() => setMode("welcome")} />
+          </div>
+        )}
+
+        {mode==="reset" && (<>
           <FieldInput label="Reponse a la question de securite" value={secAInput} onChange={setSecAInput} />
           <FieldInput label="Nouveau mot de passe" value={resetPw} onChange={setResetPw} type="password" />
           <FieldInput label="Confirmer" value={resetConfirm} onChange={setResetConfirm} type="password" />
