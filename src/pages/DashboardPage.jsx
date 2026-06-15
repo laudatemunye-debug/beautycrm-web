@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { C } from '../theme';
 import { getClients, getVentes, getProspects, getRdvs, getSeminaires, today } from '../db/index';
 import { KpiCard, Card, SectionTitle, fmtMoney, fmtDate, Badge, getDeviseSymbol } from "../components/UI";
+import { useDevise } from "../hooks/useDevise";
 
 export const DashboardPage = ({ onNavigate }) => {
   const [kpis, setKpis] = useState({});
   const [dernieresVentes, setDernieresVentes] = useState([]);
   const [rdvs, setRdvs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const devise = useDevise();
 
   useEffect(() => {
     const load = async () => {
@@ -69,7 +71,7 @@ export const DashboardPage = ({ onNavigate }) => {
         color: '#fff',
       }}>
         <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontSize:11, opacity:0.8 }}>CA du mois</span><span style={{ fontSize:11, opacity:0.8 }}>Marge</span></div>
-        <div style={{ fontWeight: 800, fontSize: 22 }}>{fmtMoney(kpis.ca, getDeviseSymbol())} · {fmtMoney(kpis.marge, getDeviseSymbol())}</div>
+        <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.ca, devise)}</span><span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.marge, devise)}</span></div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
