@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { setSetting, getSetting, exportAllData } from '../db/index';
+import { useState, useEffect, useRef } from 'react';
+import { setSetting, getSetting } from '../db/index';
 
 const CLIENT_ID = '6659063018-gs71riiatkgkk4gc6nuou23b8rut3a6b.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
@@ -7,6 +7,7 @@ const FILE_NAME = 'beautycrm-backup.json';
 
 let tokenClient = null;
 let accessToken = null;
+let tokenExpiry = 0;
 
 export const useGoogle = () => {
   const [googleUser, setGoogleUser] = useState(null);
@@ -14,30 +15,49 @@ export const useGoogle = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getSetting('google_email').then(email => { if (email && email !== 'null' && email !== '') setGoogleUser(email); });
+    getSetting('google_email').then(email => {
+      if (email && email !== 'null' && email !== '') setGoogleUser(email);
+    });
+
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
-    script.onload = () => {
-      tokenClient = window.google?.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: async (response) => {
-          if (response.error) { setError('Erreur Google : ' + response.error); return; }
-          accessToken = response.access_token;
-          const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: 'Bearer ' + accessToken },
-          }).then(r => r.json());
-          const email = info.email || '';
-          if (!email) { setError('Email non disponible.'); return; }
-          setGoogleUser(email);
-          await setSetting('google_email', email);
-          setError('');
-        },
-      });
-    };
+    script.onload = initGSI;
     document.head.appendChild(script);
   }, []);
+
+  const initGSI = () => {
+    tokenClient = window.google?.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (response) => {
+        if (response.error) { setError('Erreur Google : ' + response.error); return; }
+        accessToken = response.access_token;
+        tokenExpiry = Date.now() + (response.expires_in - 60) * 1000;
+        const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + accessToken },
+        }).then(r => r.json());
+        if (!info.email) { setError('Email non disponible.'); return; }
+        setGoogleUser(info.email);
+        await setSetting('google_email', info.email);
+        setError('');
+      },
+    });
+  };
+
+  const getToken = () => new Promise((resolve) => {
+    if (accessToken && Date.now() < tokenExpiry) { resolve(true); return; }
+    if (!tokenClient) { resolve(false); return; }
+    const prev = tokenClient.callback;
+    tokenClient.callback = (response) => {
+      tokenClient.callback = prev;
+      if (response.error) { resolve(false); return; }
+      accessToken = response.access_token;
+      tokenExpiry = Date.now() + (response.expires_in - 60) * 1000;
+      resolve(true);
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
 
   const connect = () => {
     setError('');
@@ -45,46 +65,29 @@ export const useGoogle = () => {
     tokenClient.requestAccessToken({ prompt: 'select_account' });
   };
 
-  const reconnect = () => new Promise((resolve) => {
-    if (!tokenClient) { resolve(false); return; }
-    const prev = tokenClient.callback;
-    tokenClient.callback = (response) => {
-      tokenClient.callback = prev;
-      if (response.error) { resolve(false); return; }
-      accessToken = response.access_token;
-      resolve(true);
-    };
-    tokenClient.requestAccessToken({ prompt: '' });
-  });
-
   const disconnect = async () => {
     if (accessToken) window.google?.accounts.oauth2.revoke(accessToken);
     accessToken = null;
+    tokenExpiry = 0;
     setGoogleUser(null);
     await setSetting('google_email', '');
   };
 
   const authFetch = async (url, options = {}) => {
-    if (!accessToken) throw new Error("401");
-// removed - no auto reconnect
-    if (false) {
-      const ok = await reconnect();
-      if (!ok) throw new Error('401');
-    }
-    let res = await fetch(url, { ...options, headers: { ...options.headers, Authorization: 'Bearer ' + accessToken } });
-    if (res.status === 401) {
-      const ok = await reconnect();
-      if (!ok) throw new Error('401');
-      res = await fetch(url, { ...options, headers: { ...options.headers, Authorization: 'Bearer ' + accessToken } });
-    }
-    return res;
+    const ok = await getToken();
+    if (!ok) throw new Error('SESSION_EXPIRED');
+    return fetch(url, {
+      ...options,
+      headers: { ...options.headers, Authorization: 'Bearer ' + accessToken }
+    });
   };
 
   const findFile = async () => {
     const res = await authFetch(
       `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}' and trashed=false&spaces=drive&fields=files(id,name,modifiedTime)`
-    ).then(r => r.json());
-    return res.files?.[0] || null;
+    );
+    const data = await res.json();
+    return data.files?.[0] || null;
   };
 
   const uploadBackup = async (data) => {
@@ -100,14 +103,16 @@ export const useGoogle = () => {
       const url = existing
         ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
         : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-      const method = existing ? 'PATCH' : 'POST';
-      const res = await authFetch(url, { method, body: form });
+      const res = await authFetch(url, { method: existing ? 'PATCH' : 'POST', body: form });
       if (!res.ok) throw new Error('Upload echoue : ' + res.status);
       setError('');
       return true;
     } catch(e) {
-      if (e.message === '401') setError('Session expiree. Cliquez Connecter Google Drive.');
-      else setError(e.message);
+      if (e.message === 'SESSION_EXPIRED') {
+        setError('Session expiree. Cliquez "Connecter Google Drive" pour vous reconnecter.');
+      } else {
+        setError(e.message);
+      }
       return false;
     } finally { setSyncing(false); }
   };
@@ -121,8 +126,11 @@ export const useGoogle = () => {
       if (!res.ok) throw new Error('Download echoue : ' + res.status);
       return await res.json();
     } catch(e) {
-      if (e.message === '401') setError('Session expiree. Cliquez Connecter Google Drive.');
-      else setError(e.message);
+      if (e.message === 'SESSION_EXPIRED') {
+        setError('Session expiree. Cliquez "Connecter Google Drive" pour vous reconnecter.');
+      } else {
+        setError(e.message);
+      }
       return null;
     } finally { setSyncing(false); }
   };
