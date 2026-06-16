@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useGoogle } from "../hooks/useGoogle";
+import { GoogleAccountButton } from "../components/GoogleAccountButton";
 import { C, SECURITY_QUESTIONS } from '../theme';
 import { getSetting, setSetting, sha256, exportAllData, importAllData, getVentes, getClients, today, resetDB } from '../db/index';
 import { FieldInput, PickerSelect, PrimaryBtn, GhostBtn, fmtMoney } from '../components/UI';
@@ -205,25 +206,9 @@ export const ParametresPage = ({ user, onLogout }) => {
       <Section icon="☁" label="Sync Google Drive" color={C.accent} open={open==="gdrive"} onToggle={() => toggle("gdrive")}>
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible. Fichier: beautycrm-backup.json</div>
-          {gError && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{gError}</div>}
-          {googleUser && !gError.includes("Session") ? (
-            <div>
-              <div style={{ backgroundColor: C.success+"15", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 13, color: C.success, fontWeight: 600 }}>🟢 {googleUser}</div>
-                
-              </div>
-              <PrimaryBtn label={syncing ? "En cours..." : "⬆ Sauvegarder sur Drive"} onClick={async () => { const data = await exportAllData(); await uploadBackup(data); }} color={C.success} style={{ marginBottom: 10 }} disabled={syncing} />
-              <PrimaryBtn label={syncing ? "..." : "⬇ Restaurer depuis Drive"} onClick={async () => { const { importAllData } = await import("../db/index"); const data = await downloadBackup(); if (data) { await importAllData(data); alert("Restauration reussie !"); } }} color={C.accent} style={{ marginBottom: 10 }} disabled={syncing} />
-              <GhostBtn label="Se deconnecter de Google" onClick={disconnect} />
-            </div>
-          ) : (
-            <div>
-              <div style={{ backgroundColor: C.warning+"15", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 13, color: C.warning, fontWeight: 600 }}>🔴 Non connecte a Google</div>
-              </div>
-              <PrimaryBtn label="☁ Connecter Google Drive" onClick={connect} color={C.accent} />
-            </div>
-          )}
+          <GoogleAccountButton />
+          <PrimaryBtn label={syncing ? "En cours..." : "⬆ Sauvegarder sur Drive"} onClick={async () => { const data = await exportAllData(); await uploadBackup(data); }} color={C.success} style={{ marginBottom: 10 }} disabled={syncing} />
+          <PrimaryBtn label={syncing ? "..." : "⬇ Restaurer depuis Drive"} onClick={async () => { const { importAllData } = await import("../db/index"); const data = await downloadBackup(); if (data) { await importAllData(data); alert("Restauration reussie !"); } }} color={C.accent} style={{ marginBottom: 10 }} disabled={syncing} />
         </div>
       </Section>
 
