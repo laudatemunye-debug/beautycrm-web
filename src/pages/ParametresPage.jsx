@@ -206,7 +206,7 @@ export const ParametresPage = ({ user, onLogout }) => {
       <Section icon="☁" label="Sync Google Drive" color={C.accent}
             loading={syncing} open={open==="gdrive"} onToggle={() => toggle("gdrive")}>
         <div style={{ padding: 16 }}>
-          <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible. Fichier: beautycrm-backup.json</div>
+          <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible.</div>
           <GoogleAccountButton />
           {googleUser && (
             <PrimaryBtn
