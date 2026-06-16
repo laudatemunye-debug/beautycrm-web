@@ -203,12 +203,28 @@ export const ParametresPage = ({ user, onLogout }) => {
       </div>
 
       {/* Section Sync Google Drive */}
-      <Section icon="☁" label="Sync Google Drive" color={C.accent} open={open==="gdrive"} onToggle={() => toggle("gdrive")}>
+      <Section icon="☁" label="Sync Google Drive" color={C.accent}
+            loading={syncing} open={open==="gdrive"} onToggle={() => toggle("gdrive")}>
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible. Fichier: beautycrm-backup.json</div>
           <GoogleAccountButton />
-          <PrimaryBtn label={syncing ? "En cours..." : "⬆ Sauvegarder sur Drive"} onClick={async () => { const data = await exportAllData(); await uploadBackup(data); }} color={C.success} style={{ marginBottom: 10 }} disabled={syncing} />
-          <PrimaryBtn label={syncing ? "..." : "⬇ Restaurer depuis Drive"} onClick={async () => { const { importAllData } = await import("../db/index"); const data = await downloadBackup(); if (data) { await importAllData(data); alert("Restauration reussie !"); } }} color={C.accent} style={{ marginBottom: 10 }} disabled={syncing} />
+          {googleUser && (
+            <PrimaryBtn
+              label="Synchroniser avec Drive"
+              onClick={async () => {
+                const data = await exportAllData();
+                const ok = await uploadBackup(data);
+                if (ok) {
+                  const { importAllData } = await import("../db/index");
+                  const remote = await downloadBackup();
+                  if (remote) await importAllData(remote);
+                }
+              }}
+              color={C.accent}
+              loading={syncing}
+              disabled={syncing}
+            />
+          )}
         </div>
       </Section>
 
@@ -218,7 +234,8 @@ export const ParametresPage = ({ user, onLogout }) => {
           <Msg k="export" />
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sauvegardez vos donnees ou exportez-les.</div>
           <PrimaryBtn label={loading.export ? '...' : '💾 Sauvegarde JSON complete'} onClick={exportData} color={C.success} style={{ marginBottom: 10 }} />
-          <PrimaryBtn label={loading.csv ? '...' : '📊 Exporter ventes CSV'} onClick={exportCSV} color={C.accent} />
+          <PrimaryBtn label={loading.csv ? '...' : '📊 Exporter ventes CSV'} onClick={exportCSV} color={C.accent}
+            loading={syncing} />
         </div>
       </Section>
 
@@ -234,7 +251,8 @@ export const ParametresPage = ({ user, onLogout }) => {
       </Section>
 
       {/* Section Securite */}
-      <Section icon="🔐" label="Mot de passe et Securite" color={C.accent} open={open==='securite'} onToggle={() => toggle('securite')}>
+      <Section icon="🔐" label="Mot de passe et Securite" color={C.accent}
+            loading={syncing} open={open==='securite'} onToggle={() => toggle('securite')}>
         <div style={{ padding: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 12 }}>Modifier le mot de passe</div>
           <Msg k="pw" />

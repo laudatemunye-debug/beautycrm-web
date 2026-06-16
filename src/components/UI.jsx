@@ -14,29 +14,51 @@ export const Card = ({ children, style, onClick }) => (
   </div>
 );
 
+const spinStyle = `
+@keyframes primBtn-spin {
+  to { transform: rotate(360deg); }
+}
+`;
+
 export const PrimaryBtn = ({ label, onClick, color, style, disabled, loading }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled || loading}
-    style={{
-      backgroundColor: disabled || loading ? (color || C.accent) + '80' : (color || C.accent),
-      color: '#fff',
-      border: 'none',
-      borderRadius: 12,
-      padding: '13px 16px',
-      fontWeight: 700,
-      fontSize: 14,
-      cursor: disabled || loading ? 'not-allowed' : 'pointer',
-      width: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      ...style,
-    }}
-  >
-    {loading ? '...' : label}
-  </button>
+  <>
+    <style>{`@keyframes primBtn-spin { to { transform: rotate(360deg); } }`}</style>
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      style={{
+        backgroundColor: disabled || loading ? (color || C.accent) + '80' : (color || C.accent),
+        color: '#fff',
+        border: 'none',
+        borderRadius: 12,
+        padding: '13px 16px',
+        fontWeight: 700,
+        fontSize: 14,
+        cursor: disabled || loading ? 'not-allowed' : 'pointer',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        transition: 'background-color 0.2s ease',
+        ...style,
+      }}
+    >
+      {loading ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 16, height: 16,
+            border: '2px solid rgba(255,255,255,0.4)',
+            borderTopColor: '#fff',
+            borderRadius: '50%',
+            display: 'inline-block',
+            animation: 'primBtn-spin 0.7s linear infinite',
+          }} />
+          {label}
+        </span>
+      ) : label}
+    </button>
+  </>
 );
 
 export const GhostBtn = ({ label, onClick, style }) => (
