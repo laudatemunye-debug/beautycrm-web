@@ -207,7 +207,7 @@ export const ParametresPage = ({ user, onLogout }) => {
             loading={syncing} open={open==="gdrive"} onToggle={() => toggle("gdrive")}>
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible.</div>
-          <GoogleAccountButton />
+          <GoogleAccountButton onSync={async () => { const data = await exportAllData(); const ok = await uploadBackup(data); if (ok) { const { importAllData } = await import("../db/index"); const remote = await downloadBackup(); if (remote) await importAllData(remote); } }} />
           {googleUser && (
             <PrimaryBtn
               label="Synchroniser avec Drive"
