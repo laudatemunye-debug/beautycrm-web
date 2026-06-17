@@ -174,5 +174,60 @@ export const useGoogle = () => {
     } finally { setSyncing(false); }
   };
 
-  return { googleUser, syncing, authReady, error, connect, disconnect, uploadBackup, downloadBackup };
+  const mergeSync = async (localData) => {
+    setSyncing(true); setError('');
+    try {
+      const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants'];
+      
+      // 1. Telecharge Drive
+      const remote = await downloadBackup();
+      
+      // 2. Si pas de donnees remote, upload local directement
+      if (!remote) {
+        await uploadBackup(localData);
+        return true;
+      }
+      
+      // 3. Fusion: pour chaque table, garde l'enregistrement le plus recent
+      const merged = {};
+      for (const table of tables) {
+        const localItems  = localData[table]  || [];
+        const remoteItems = remote[table] || [];
+        
+        // Index par _id
+        const map = {};
+        for (const item of remoteItems) {
+          map[item._id] = item;
+        }
+        for (const item of localItems) {
+          const existing = map[item._id];
+          if (!existing) {
+            map[item._id] = item;
+          } else {
+            const localTime  = item.updated_at     || item.created_at     || '';
+            const remoteTime = existing.updated_at || existing.created_at || '';
+            if (localTime >= remoteTime) {
+              map[item._id] = item;
+            }
+          }
+        }
+        merged[table] = Object.values(map);
+      }
+      merged.exported_at = new Date().toISOString();
+      
+      // 4. Sauvegarde merged en local
+      const { importAllData } = await import('../db/index');
+      await importAllData(merged);
+      
+      // 5. Upload merged sur Drive
+      await uploadBackup(merged);
+      
+      return true;
+    } catch(e) {
+      setError(e.message === 'SESSION_EXPIRED' ? 'Session expiree, reconnectez Google.' : e.message);
+      return false;
+    } finally { setSyncing(false); }
+  };
+
+  return { googleUser, syncing, authReady, error, connect, disconnect, uploadBackup, downloadBackup, mergeSync };
 };
