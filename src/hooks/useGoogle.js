@@ -50,7 +50,8 @@ export const useGoogle = () => {
       return;
     }
 
-    _accessToken = response.access_token;
+    const token = response.access_token;
+    _accessToken = token;
     _tokenExpiry = Date.now() + (response.expires_in - 60) * 1000;
 
     clearTimeout(_refreshTimer);
@@ -61,7 +62,7 @@ export const useGoogle = () => {
 
     try {
       const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: 'Bearer ' + _accessToken },
+        headers: { Authorization: 'Bearer ' + token },
       }).then(r => r.json());
 
       if (!info.email && !info.sub) { setError('Email non disponible.'); return; }
