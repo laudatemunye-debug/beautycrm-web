@@ -75,7 +75,6 @@ export const useGoogle = () => {
       const stored = await getSetting('google_user');
       if (stored) { try { setGoogleUser(JSON.parse(stored)); } catch (_) {} }
     }
-    }
 
     setError('');
   }, []);
