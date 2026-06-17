@@ -15,12 +15,14 @@ const S = {
   dot: { width:6, height:6, borderRadius:'50%', background:'#34A853', flexShrink:0 },
   actions: { display:'flex', alignItems:'center', gap:12, marginLeft:'auto', flexShrink:0 },
   syncBtn: { width:30, height:30, background:'#3D5AFE', border:'none', borderRadius:6, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
-  syncBtnDisabled: { width:30, height:30, background:'#3D5AFE99', border:'none', borderRadius:6, cursor:'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  syncBtnOff: { width:30, height:30, background:'#3D5AFE99', border:'none', borderRadius:6, cursor:'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
   disconnectBtn: { padding:'4px 8px', background:'transparent', border:'1px solid #e0e0e0', borderRadius:6, fontSize:11, color:'#888', cursor:'pointer', flexShrink:0 },
   connectBtn: { display:'flex', alignItems:'center', gap:10, padding:'8px 14px', background:'#fff', border:'1px solid #dadce0', borderRadius:8, cursor:'pointer', boxShadow:'0 1px 3px rgba(0,0,0,.08)', fontSize:13, fontWeight:500, color:'#3c4043', width:'100%' },
   googleLogo: { width:18, height:18, flexShrink:0 },
-  error: { marginTop:6, fontSize:11, color:'#d93025', display:'flex', alignItems:'center', gap:4 },
-  success: { marginTop:6, fontSize:11, color:'#34A853', display:'flex', alignItems:'center', gap:4 },
+  meta: { fontSize:10, color:'#999', marginTop:5, paddingLeft:2 },
+  warn: { color:'#f59e0b', marginLeft:8 },
+  err: { marginTop:6, fontSize:11, color:'#d93025' },
+  ok: { marginTop:6, fontSize:11, color:'#34A853' },
 };
 
 const GoogleLogo = () => (
@@ -41,54 +43,57 @@ const SyncIcon = ({ spinning }) => (
   </svg>
 );
 
-export const GoogleAccountButton = ({ onSync, localData }) => {
+const fmtDate = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+};
+
+export const GoogleAccountButton = ({ onSync }) => {
   const { googleUser, authReady, error, connect, disconnect } = useGoogle();
   const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
-  const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync') || null);
+  const [msg, setMsg]         = useState('');
+  const [isOk, setIsOk]       = useState(true);
+  const [lastSync, setLastSync] = useState(() => localStorage.getItem('beautycrm_last_sync') || '');
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
-
-  const unsavedCount = localData
-    ? ['clients','produits','ventes','prospects','rdvs','seminaires','participants']
-        .reduce((acc, k) => acc + (localData[k]||[]).filter(i => !lastSync || (i.updated_at && i.updated_at > lastSync)).length, 0)
-    : 0;
 
   const doSync = async (token) => {
     setSyncing(true);
-    setSyncMsg('');
+    setMsg('');
     try {
       const ok = await onSync(token);
       if (ok) {
         const now = new Date().toISOString();
-        localStorage.setItem('last_sync', now);
+        localStorage.setItem('beautycrm_last_sync', now);
         setLastSync(now);
+        setIsOk(true);
+        setMsg('Synchronisation reussie');
+      } else {
+        setIsOk(false);
+        setMsg('Echec de la synchronisation');
       }
-      setSyncMsg(ok ? '✓ Synchronisation reussie' : '✗ Echec');
-      setTimeout(() => setSyncMsg(''), 4000);
     } catch(e) {
-      setSyncMsg('Erreur: ' + e.message);
+      setIsOk(false);
+      setMsg('Erreur: ' + e.message);
     } finally {
       setSyncing(false);
+      setTimeout(() => setMsg(''), 5000);
     }
   };
 
   const handleSync = () => {
     if (syncing || !onSync) return;
-
-    // Si token encore valide, sync directement sans popup
     if (window.__gtoken && window.__gexpiry && Date.now() < window.__gexpiry) {
       doSync(window.__gtoken);
       return;
     }
-
-    if (!window.google?.accounts?.oauth2) { setSyncMsg('Google non disponible'); return; }
-
+    if (!window.google?.accounts?.oauth2) { setIsOk(false); setMsg('Google non disponible'); return; }
     const tc = window.google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPE,
-      callback: async (resp) => {
-        if (resp.error) { setSyncMsg('Erreur: ' + resp.error); setSyncing(false); return; }
-        window.__gtoken = resp.access_token;
+      callback: (resp) => {
+        if (resp.error) { setIsOk(false); setMsg('Erreur token'); setSyncing(false); return; }
+        window.__gtoken  = resp.access_token;
         window.__gexpiry = Date.now() + (resp.expires_in - 120) * 1000;
         doSync(resp.access_token);
       },
@@ -99,7 +104,7 @@ export const GoogleAccountButton = ({ onSync, localData }) => {
   if (googleUser) {
     return (
       <div>
-        <style>{`@keyframes gab-spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{'@keyframes gab-spin { to { transform: rotate(360deg); } }'}</style>
         <div style={S.card}>
           {googleUser.picture
             ? <img src={googleUser.picture} alt="avatar" style={S.avatar} referrerPolicy="no-referrer" />
@@ -108,30 +113,23 @@ export const GoogleAccountButton = ({ onSync, localData }) => {
           <div style={S.info}>
             <span style={S.name}>{googleUser.name || googleUser.email}</span>
             <span style={S.email}>{googleUser.email}</span>
-            <span style={S.badge}><span style={S.dot}/>{syncing ? 'Synchronisation...' : 'Drive connecte'}</span>
-          </div>
+            <span style={S.badge}>
+              <span style={S.dot}/>
+              {syncing ? 'Synchronisation...' : 'Drive connecte'}
+            </span>
           </div>
           <div style={S.actions}>
-            <button style={syncing ? S.syncBtnDisabled : S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser">
+            <button style={syncing ? S.syncBtnOff : S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser">
               <SyncIcon spinning={syncing} />
             </button>
             <button style={S.disconnectBtn} onClick={disconnect}>Deconnecter</button>
           </div>
         </div>
-        <div style={{ fontSize:10, color:'#999', marginTop:6, paddingLeft:2 }}>
-          {lastSync
-            ? 'Derniere sync: ' + new Date(lastSync).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-            : 'Jamais synchronise'}
-          {unsavedCount > 0 && <span style={{ color:'#f59e0b', marginLeft:8 }}>• {unsavedCount} modification{unsavedCount>1?'s':''} non sauvegardee{unsavedCount>1?'s':''}</span>}
+        <div style={S.meta}>
+          {lastSync ? ('Derniere sync: ' + fmtDate(lastSync)) : 'Jamais synchronise'}
         </div>
-        <div style={{ fontSize:10, color:'#999', marginTop:6, paddingLeft:2 }}>
-          {lastSync
-            ? 'Derniere sync: ' + new Date(lastSync).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-            : 'Jamais synchronise'}
-          {unsavedCount > 0 && <span style={{ color:'#f59e0b', marginLeft:8 }}>• {unsavedCount} modification{unsavedCount>1?'s':''} non sauvegardee{unsavedCount>1?'s':''}</span>}
-        </div>
-        {syncMsg && <div style={syncMsg.startsWith('✓') ? S.success : S.error}>{syncMsg}</div>}
-        {error && <div style={S.error}>⚠ {error}</div>}
+        {msg ? <div style={isOk ? S.ok : S.err}>{isOk ? '✓ ' : '✗ '}{msg}</div> : null}
+        {error ? <div style={S.err}>{'⚠ ' + error}</div> : null}
       </div>
     );
   }
@@ -142,7 +140,7 @@ export const GoogleAccountButton = ({ onSync, localData }) => {
         <GoogleLogo />
         {authReady ? 'Se connecter avec Google' : 'Chargement...'}
       </button>
-      {error && <div style={S.error}>⚠ {error}</div>}
+      {error ? <div style={S.err}>{'⚠ ' + error}</div> : null}
     </div>
   );
 };
