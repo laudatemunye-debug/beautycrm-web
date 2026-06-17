@@ -124,6 +124,12 @@ export const GoogleAccountButton = ({ onSync, localData }) => {
             : 'Jamais synchronise'}
           {unsavedCount > 0 && <span style={{ color:'#f59e0b', marginLeft:8 }}>• {unsavedCount} modification{unsavedCount>1?'s':''} non sauvegardee{unsavedCount>1?'s':''}</span>}
         </div>
+        <div style={{ fontSize:10, color:'#999', marginTop:6, paddingLeft:2 }}>
+          {lastSync
+            ? 'Derniere sync: ' + new Date(lastSync).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : 'Jamais synchronise'}
+          {unsavedCount > 0 && <span style={{ color:'#f59e0b', marginLeft:8 }}>• {unsavedCount} modification{unsavedCount>1?'s':''} non sauvegardee{unsavedCount>1?'s':''}</span>}
+        </div>
         {syncMsg && <div style={syncMsg.startsWith('✓') ? S.success : S.error}>{syncMsg}</div>}
         {error && <div style={S.error}>⚠ {error}</div>}
       </div>
