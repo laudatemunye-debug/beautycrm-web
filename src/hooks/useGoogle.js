@@ -177,6 +177,7 @@ export const useGoogle = () => {
   const mergeSync = async (localData) => {
     setSyncing(true); setError('');
     try {
+      console.log('mergeSync start, localData keys:', Object.keys(localData));
       const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants'];
       
       // 1. Telecharge Drive
