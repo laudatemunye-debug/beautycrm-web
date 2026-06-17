@@ -59,25 +59,21 @@ export const useGoogle = () => {
     pendingResolvers.current.forEach(r => r(true));
     pendingResolvers.current = [];
 
-    const stored = await getSetting('google_user');
-    if (!stored) {
-      try {
-        const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: 'Bearer ' + _accessToken },
-        }).then(r => r.json());
+    try {
+      const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + _accessToken },
+      }).then(r => r.json());
 
-        console.log('Google userinfo response:', JSON.stringify(info));
-        if (!info.email && !info.sub) { setError('Email non disponible.'); return; }
-        if (!info.email) info.email = info.sub + '@google.com';
+      if (!info.email && !info.sub) { setError('Email non disponible.'); return; }
+      if (!info.email) info.email = info.sub + '@google.com';
 
-        const user = { email: info.email, name: info.name || info.email, picture: info.picture || null };
-        setGoogleUser(user);
-        await setSetting('google_user', JSON.stringify(user));
-      } catch (_) {
-        setError('Impossible de recuperer le profil Google.');
-      }
-    } else {
-      try { setGoogleUser(JSON.parse(stored)); } catch (_) {}
+      const user = { email: info.email, name: info.name || info.email, picture: info.picture || null };
+      setGoogleUser(user);
+      await setSetting('google_user', JSON.stringify(user));
+    } catch (_) {
+      const stored = await getSetting('google_user');
+      if (stored) { try { setGoogleUser(JSON.parse(stored)); } catch (_) {} }
+    }
     }
 
     setError('');
