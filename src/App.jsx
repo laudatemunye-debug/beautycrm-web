@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getSetting, importAllData } from './db/index';
 import { useNetwork } from './hooks/useNetwork';
 import { useDevise } from './hooks/useDevise';
@@ -18,6 +19,7 @@ import { RapportsPage } from './pages/RapportsPage';
 import { ParametresPage } from './pages/ParametresPage';
 
 export default function App() {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [checking, setChecking] = useState(true);
@@ -111,6 +113,20 @@ export default function App() {
       <Layout page={page} onNavigate={setPage} user={user}>
         {renderPage()}
       </Layout>
+      {needRefresh && (
+        <div style={{
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+          background: '#1A1F36', border: '1px solid #3D5AFE', borderRadius: 12,
+          padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)', zIndex: 9999, minWidth: 280,
+        }}>
+          <span style={{ fontSize: 13, color: '#fff', flex: 1 }}>🔄 Nouvelle version disponible</span>
+          <button onClick={() => updateServiceWorker(true)} style={{
+            background: '#3D5AFE', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>Mettre à jour</button>
+        </div>
+      )}
     </>
   );
 }
