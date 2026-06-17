@@ -87,22 +87,7 @@ export const useGoogle = () => {
 
   const getToken = () => new Promise(resolve => {
     if (_accessToken && Date.now() < _tokenExpiry) { resolve(true); return; }
-    if (!_tokenClient) { resolve(false); return; }
-    resolvers.current.push(resolve);
-    if (resolvers.current.length === 1) {
-      _tokenClient.callback = (resp) => {
-        if (resp.error) {
-          resolvers.current.forEach(r => r(false));
-          resolvers.current = [];
-          return;
-        }
-        _accessToken = resp.access_token;
-        _tokenExpiry = Date.now() + (resp.expires_in - 120) * 1000;
-        resolvers.current.forEach(r => r(true));
-        resolvers.current = [];
-      };
-      _tokenClient.requestAccessToken({ prompt: 'none' });
-    }
+    resolve(false);
   });
 
   const connect = () => {
