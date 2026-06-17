@@ -39,7 +39,6 @@ export const useGoogle = () => {
       callback: onToken,
     });
     setAuthReady(true);
-    getSetting('google_user').then(raw => { if (raw) silentRefresh(); });
   };
 
   const onToken = async (resp) => {
