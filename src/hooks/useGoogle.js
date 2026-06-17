@@ -66,6 +66,7 @@ export const useGoogle = () => {
           headers: { Authorization: 'Bearer ' + _accessToken },
         }).then(r => r.json());
 
+        console.log('Google userinfo response:', JSON.stringify(info));
         if (!info.email && !info.sub) { setError('Email non disponible.'); return; }
         if (!info.email) info.email = info.sub + '@google.com';
 
