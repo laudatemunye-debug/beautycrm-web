@@ -75,7 +75,7 @@ export const GoogleAccountButton = ({ onSync }) => {
         }
       },
     });
-    tc.requestAccessToken({ prompt: 'none' });
+    tc.requestAccessToken({ prompt: '' });
   };
 
   if (googleUser) {
