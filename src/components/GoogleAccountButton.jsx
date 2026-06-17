@@ -47,36 +47,42 @@ export const GoogleAccountButton = ({ onSync }) => {
   const [syncMsg, setSyncMsg]   = useState('');
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
 
-  const handleSync = () => {
-    if (syncing || !onSync) return;
-    if (!window.google?.accounts?.oauth2) { setSyncMsg('Google non disponible'); return; }
-
+  const doSync = async (token) => {
     setSyncing(true);
     setSyncMsg('');
+    try {
+      const ok = await onSync(token);
+      setSyncMsg(ok ? '✓ Synchronisation reussie' : '✗ Echec');
+      setTimeout(() => setSyncMsg(''), 4000);
+    } catch(e) {
+      setSyncMsg('Erreur: ' + e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
-    // Obtenir un token frais via clic utilisateur = pas de popup bloqué
+  const handleSync = () => {
+    if (syncing || !onSync) return;
+
+    // Si token encore valide, sync directement sans popup
+    if (window.__gtoken && window.__gexpiry && Date.now() < window.__gexpiry) {
+      doSync(window.__gtoken);
+      return;
+    }
+
+    if (!window.google?.accounts?.oauth2) { setSyncMsg('Google non disponible'); return; }
+
     const tc = window.google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPE,
       callback: async (resp) => {
-        if (resp.error) {
-          setSyncMsg('Erreur token: ' + resp.error);
-          setSyncing(false);
-          return;
-        }
-        try {
-          const ok = await onSync(resp.access_token);
-          setSyncMsg(ok ? '✓ Synchronisation reussie' : '✗ Echec synchronisation');
-          setTimeout(() => setSyncMsg(''), 4000);
-        } catch(e) {
-          setSyncMsg('Erreur: ' + e.message);
-        } finally {
-          setSyncing(false);
-        }
+        if (resp.error) { setSyncMsg('Erreur: ' + resp.error); setSyncing(false); return; }
+        window.__gtoken = resp.access_token;
+        window.__gexpiry = Date.now() + (resp.expires_in - 120) * 1000;
+        doSync(resp.access_token);
       },
     });
-    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    tc.requestAccessToken({ prompt: isMobile ? 'select_account' : '' });
+    tc.requestAccessToken({ prompt: '' });
   };
 
   if (googleUser) {

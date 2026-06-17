@@ -53,6 +53,8 @@ export const useGoogle = () => {
 
     _accessToken = resp.access_token;
     _tokenExpiry = Date.now() + (resp.expires_in - 120) * 1000;
+    window.__gtoken = resp.access_token;
+    window.__gexpiry = _tokenExpiry;
 
     resolvers.current.forEach(r => r(true));
     resolvers.current = [];
