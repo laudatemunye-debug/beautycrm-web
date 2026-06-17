@@ -82,7 +82,7 @@ export const useGoogle = () => {
     if (!_tokenClient) return;
     try {
       _tokenClient.callback = onToken;
-      _tokenClient.requestAccessToken({ prompt: '' });
+      _tokenClient.requestAccessToken({ prompt: 'none' });
     } catch(_) {}
   };
 
