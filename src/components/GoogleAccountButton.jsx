@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useGoogle } from '../hooks/useGoogle';
 
+const CLIENT_ID = '6659063018-gs71riiatkgkk4gc6nuou23b8rut3a6b.apps.googleusercontent.com';
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
 const S = {
   card: { display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#fff', border:'1px solid #e0e0e0', borderRadius:'8px', boxShadow:'0 1px 3px rgba(0,0,0,.08)', minWidth:0 },
   avatar: { width:32, height:32, borderRadius:'50%', objectFit:'cover', flexShrink:0 },
@@ -12,6 +15,7 @@ const S = {
   dot: { width:6, height:6, borderRadius:'50%', background:'#34A853', flexShrink:0 },
   actions: { display:'flex', alignItems:'center', gap:12, marginLeft:'auto', flexShrink:0 },
   syncBtn: { width:30, height:30, background:'#3D5AFE', border:'none', borderRadius:6, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  syncBtnDisabled: { width:30, height:30, background:'#3D5AFE99', border:'none', borderRadius:6, cursor:'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
   disconnectBtn: { padding:'4px 8px', background:'transparent', border:'1px solid #e0e0e0', borderRadius:6, fontSize:11, color:'#888', cursor:'pointer', flexShrink:0 },
   connectBtn: { display:'flex', alignItems:'center', gap:10, padding:'8px 14px', background:'#fff', border:'1px solid #dadce0', borderRadius:8, cursor:'pointer', boxShadow:'0 1px 3px rgba(0,0,0,.08)', fontSize:13, fontWeight:500, color:'#3c4043', width:'100%' },
   googleLogo: { width:18, height:18, flexShrink:0 },
@@ -30,7 +34,7 @@ const GoogleLogo = () => (
 
 const SyncIcon = ({ spinning }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-    style={{ animation: spinning ? 'spin 0.8s linear infinite' : 'none' }}>
+    style={{ animation: spinning ? 'gab-spin 0.8s linear infinite' : 'none', display:'block' }}>
     <polyline points="23 4 23 10 17 10"/>
     <polyline points="1 20 1 14 7 14"/>
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -39,27 +43,45 @@ const SyncIcon = ({ spinning }) => (
 
 export const GoogleAccountButton = ({ onSync }) => {
   const { googleUser, authReady, error, connect, disconnect } = useGoogle();
-  const [syncing, setSyncing] = useState(false);
-  const [syncDone, setSyncDone] = useState(false);
+  const [syncing, setSyncing]   = useState(false);
+  const [syncMsg, setSyncMsg]   = useState('');
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
 
-  const handleSync = async () => {
-    if (!onSync || syncing) return;
+  const handleSync = () => {
+    if (syncing || !onSync) return;
+    if (!window.google?.accounts?.oauth2) { setSyncMsg('Google non disponible'); return; }
+
     setSyncing(true);
-    setSyncDone(false);
-    try {
-      await onSync();
-      setSyncDone(true);
-      setTimeout(() => setSyncDone(false), 3000);
-    } finally {
-      setSyncing(false);
-    }
+    setSyncMsg('');
+
+    // Obtenir un token frais via clic utilisateur = pas de popup bloqué
+    const tc = window.google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+      callback: async (resp) => {
+        if (resp.error) {
+          setSyncMsg('Erreur token: ' + resp.error);
+          setSyncing(false);
+          return;
+        }
+        try {
+          const ok = await onSync(resp.access_token);
+          setSyncMsg(ok ? '✓ Synchronisation reussie' : '✗ Echec synchronisation');
+          setTimeout(() => setSyncMsg(''), 4000);
+        } catch(e) {
+          setSyncMsg('Erreur: ' + e.message);
+        } finally {
+          setSyncing(false);
+        }
+      },
+    });
+    tc.requestAccessToken({ prompt: 'none' });
   };
 
   if (googleUser) {
     return (
       <div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{`@keyframes gab-spin { to { transform: rotate(360deg); } }`}</style>
         <div style={S.card}>
           {googleUser.picture
             ? <img src={googleUser.picture} alt="avatar" style={S.avatar} referrerPolicy="no-referrer" />
@@ -71,13 +93,13 @@ export const GoogleAccountButton = ({ onSync }) => {
             <span style={S.badge}><span style={S.dot}/>{syncing ? 'Synchronisation...' : 'Drive connecte'}</span>
           </div>
           <div style={S.actions}>
-            <button style={S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser avec Drive">
+            <button style={syncing ? S.syncBtnDisabled : S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser">
               <SyncIcon spinning={syncing} />
             </button>
             <button style={S.disconnectBtn} onClick={disconnect}>Deconnecter</button>
           </div>
         </div>
-        {syncDone && <div style={S.success}>✓ Synchronisation reussie</div>}
+        {syncMsg && <div style={syncMsg.startsWith('✓') ? S.success : S.error}>{syncMsg}</div>}
         {error && <div style={S.error}>⚠ {error}</div>}
       </div>
     );
