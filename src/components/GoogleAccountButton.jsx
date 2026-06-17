@@ -75,7 +75,8 @@ export const GoogleAccountButton = ({ onSync }) => {
         }
       },
     });
-    tc.requestAccessToken({ prompt: '' });
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    tc.requestAccessToken({ prompt: isMobile ? 'select_account' : '' });
   };
 
   if (googleUser) {
