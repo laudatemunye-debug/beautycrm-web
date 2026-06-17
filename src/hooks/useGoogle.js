@@ -85,8 +85,12 @@ export const useGoogle = () => {
     } catch(_) {}
   };
 
-  const getToken = () => new Promise(resolve => {
-    if (_accessToken && Date.now() < _tokenExpiry) { resolve(true); return; }
+  const getToken = () => {
+    if (_accessToken && Date.now() < _tokenExpiry) return Promise.resolve(true);
+    return Promise.resolve(false);
+  };
+
+  const refreshToken = () => new Promise(resolve => {
     if (!_tokenClient) { resolve(false); return; }
     resolvers.current.push(resolve);
     if (resolvers.current.length === 1) {
@@ -101,13 +105,7 @@ export const useGoogle = () => {
         resolvers.current.forEach(r => r(true));
         resolvers.current = [];
       };
-      _tokenClient.requestAccessToken({ prompt: 'none' });
-      setTimeout(() => {
-        if (resolvers.current.length > 0) {
-          resolvers.current.forEach(r => r(false));
-          resolvers.current = [];
-        }
-      }, 5000);
+      _tokenClient.requestAccessToken({ prompt: 'select_account' });
     }
   });
 
@@ -128,8 +126,11 @@ export const useGoogle = () => {
   };
 
   const authFetch = async (url, opts = {}) => {
-    const ok = await getToken();
-    if (!ok) throw new Error('SESSION_EXPIRED');
+    let ok = await getToken();
+    if (!ok) {
+      ok = await refreshToken();
+      if (!ok) throw new Error('SESSION_EXPIRED');
+    }
     return fetch(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${_accessToken}` } });
   };
 
