@@ -80,8 +80,10 @@ export const useGoogle = () => {
 
   const silentRefresh = () => {
     if (!_tokenClient) return;
-    _tokenClient.callback = onToken;
-    _tokenClient.requestAccessToken({ prompt: '' });
+    try {
+      _tokenClient.callback = onToken;
+      _tokenClient.requestAccessToken({ prompt: '' });
+    } catch(_) {}
   };
 
   const getToken = () => new Promise(resolve => {
