@@ -128,11 +128,7 @@ export const useGoogle = () => {
   };
 
   const authFetch = async (url, opts = {}) => {
-    let ok = await getToken();
-    if (!ok) {
-      ok = await refreshToken();
-      if (!ok) throw new Error('SESSION_EXPIRED');
-    }
+    if (!_accessToken) throw new Error('SESSION_EXPIRED');
     return fetch(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${_accessToken}` } });
   };
 
