@@ -83,8 +83,12 @@ export const GoogleAccountButton = ({ onSync }) => {
 
   const handleSync = () => {
     if (syncing || !onSync) return;
-    if (window.__gtoken && window.__gexpiry && Date.now() < window.__gexpiry) {
-      doSync(window.__gtoken);
+    const cachedToken  = window.__gtoken  || sessionStorage.getItem('__gtoken');
+    const cachedExpiry = window.__gexpiry || parseInt(sessionStorage.getItem('__gexpiry') || '0');
+    if (cachedToken && cachedExpiry && Date.now() < cachedExpiry) {
+      window.__gtoken  = cachedToken;
+      window.__gexpiry = cachedExpiry;
+      doSync(cachedToken);
       return;
     }
     if (!window.google?.accounts?.oauth2) { setIsOk(false); setMsg('Google non disponible'); return; }
@@ -95,6 +99,8 @@ export const GoogleAccountButton = ({ onSync }) => {
         if (resp.error) { setIsOk(false); setMsg('Erreur token'); setSyncing(false); return; }
         window.__gtoken  = resp.access_token;
         window.__gexpiry = Date.now() + (resp.expires_in - 120) * 1000;
+        sessionStorage.setItem('__gtoken',  resp.access_token);
+        sessionStorage.setItem('__gexpiry', window.__gexpiry.toString());
         doSync(resp.access_token);
       },
     });
