@@ -41,17 +41,28 @@ const SyncIcon = ({ spinning }) => (
   </svg>
 );
 
-export const GoogleAccountButton = ({ onSync }) => {
+export const GoogleAccountButton = ({ onSync, localData }) => {
   const { googleUser, authReady, error, connect, disconnect } = useGoogle();
-  const [syncing, setSyncing]   = useState(false);
-  const [syncMsg, setSyncMsg]   = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [lastSync, setLastSync] = useState(() => localStorage.getItem('last_sync') || null);
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
+
+  const unsavedCount = localData
+    ? ['clients','produits','ventes','prospects','rdvs','seminaires','participants']
+        .reduce((acc, k) => acc + (localData[k]||[]).filter(i => !lastSync || (i.updated_at && i.updated_at > lastSync)).length, 0)
+    : 0;
 
   const doSync = async (token) => {
     setSyncing(true);
     setSyncMsg('');
     try {
       const ok = await onSync(token);
+      if (ok) {
+        const now = new Date().toISOString();
+        localStorage.setItem('last_sync', now);
+        setLastSync(now);
+      }
       setSyncMsg(ok ? '✓ Synchronisation reussie' : '✗ Echec');
       setTimeout(() => setSyncMsg(''), 4000);
     } catch(e) {
@@ -98,6 +109,13 @@ export const GoogleAccountButton = ({ onSync }) => {
             <span style={S.name}>{googleUser.name || googleUser.email}</span>
             <span style={S.email}>{googleUser.email}</span>
             <span style={S.badge}><span style={S.dot}/>{syncing ? 'Synchronisation...' : 'Drive connecte'}</span>
+          </div>
+          <div style={{ fontSize:10, color:'#999', marginTop:2 }}>
+              {lastSync
+                ? 'Sync: ' + new Date(lastSync).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+                : 'Jamais synchronise'}
+              {unsavedCount > 0 && <span style={{ color:'#f59e0b', marginLeft:6 }}>• {unsavedCount} non sauvegarde{unsavedCount>1?'s':''}</span>}
+            </div>
           </div>
           <div style={S.actions}>
             <button style={syncing ? S.syncBtnDisabled : S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser">
