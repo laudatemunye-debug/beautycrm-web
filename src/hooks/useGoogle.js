@@ -175,7 +175,8 @@ export const useGoogle = () => {
     } finally { setSyncing(false); }
   };
 
-  const mergeSync = async (localData) => {
+  const mergeSync = async (localData, freshToken) => {
+    if (freshToken) { _accessToken = freshToken; _tokenExpiry = Date.now() + 55 * 60 * 1000; }
     setSyncing(true); setError('');
     try {
       console.log('mergeSync start, localData keys:', Object.keys(localData));
