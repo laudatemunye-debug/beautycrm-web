@@ -58,6 +58,12 @@ export const GoogleAccountButton = ({ onSync }) => {
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
 
   const doSync = async (token) => {
+    if (!navigator.onLine) {
+      setIsOk(false);
+      setMsg('Pas de connexion internet');
+      setTimeout(() => setMsg(''), 4000);
+      return;
+    }
     setSyncing(true);
     setMsg('');
     try {
