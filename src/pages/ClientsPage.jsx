@@ -45,7 +45,7 @@ const ClientForm = ({ client, onClose, onSaved }) => {
         <button onClick={async () => {
           if (!navigator.contacts) {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            if (isIOS) { alert("Ouvrez cette page depuis beautycrm-ton-agenda-numerique.netlify.app sur Safari pour importer vos contacts."); }
+            if (isIOS) { alert("Ouvrez cette page depuis beautycrm-web.vercel.app sur Safari pour importer vos contacts."); }
             else { alert("Utilisez Chrome sur Android pour importer vos contacts."); }
             return;
           }
