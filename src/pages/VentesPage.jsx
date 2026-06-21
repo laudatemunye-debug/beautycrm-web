@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C } from '../theme';
-import { getVentes, getClients, saveVente, getProduits, today } from '../db/index';
+import { getVentes, getClients, saveVente, getProduits, today, deleteVente } from '../db/index';
 import { Card, SearchBar, SectionTitle, PrimaryBtn, FieldInput, PickerSelect, Modal, FormFooter, Badge, fmtMoney, fmtDate } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
 
-const VenteRapideForm = ({ onClose, onSaved }) => {
+const VenteRapideForm = ({ onClose, onSaved, venteEdit }) => {
   const [clients, setClients] = useState([]);
   const [produits, setProduits] = useState([]);
   const [clientNomSelected, setClientNomSelected] = useState("");
@@ -13,8 +13,24 @@ const VenteRapideForm = ({ onClose, onSaved }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getClients().then(setClients);
+    getClients().then(cs => {
+      setClients(cs);
+      if (venteEdit) {
+        const cl = cs.find(c => c._id === venteEdit.client_id);
+        if (cl) setClientNomSelected(cl.nom);
+      }
+    });
     getProduits().then(setProduits);
+    if (venteEdit) {
+      setForm({
+        produit: venteEdit.produit || '',
+        prix_achat: String(venteEdit.prix_achat ?? ''),
+        prix_vente: String(venteEdit.prix_vente ?? ''),
+        quantite: String(venteEdit.quantite ?? '1'),
+        methode: venteEdit.methode_paiement || 'Cash',
+        notes: venteEdit.notes || '',
+      });
+    }
   }, []);
 
   const onProduitChange = (nom) => {
@@ -24,6 +40,18 @@ const VenteRapideForm = ({ onClose, onSaved }) => {
       prix_achat: p?.prix_achat ? String(p.prix_achat) : f.prix_achat,
       prix_vente: p?.prix_vente ? String(p.prix_vente) : f.prix_vente,
     }));
+  };
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = async () => {
+    if (!venteEdit) return;
+    setLoading(true);
+    try {
+      await deleteVente(venteEdit._id);
+      onSaved();
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   const save = async () => {
@@ -37,12 +65,13 @@ const VenteRapideForm = ({ onClose, onSaved }) => {
     setLoading(true);
     try {
       await saveVente({
+        ...(venteEdit ? { _id: venteEdit._id } : {}),
         client_id: clientId,
         produit: form.produit,
         quantite: parseInt(form.quantite) || 1,
         prix_achat: parseFloat(form.prix_achat) || 0,
         prix_vente: pv,
-        date_vente: today(),
+        date_vente: venteEdit ? venteEdit.date_vente : today(),
         methode_paiement: form.methode,
         notes: form.notes,
       });
@@ -52,7 +81,7 @@ const VenteRapideForm = ({ onClose, onSaved }) => {
   };
 
   return (
-    <Modal visible onClose={onClose} title="Vente rapide">
+    <Modal visible onClose={onClose} title={venteEdit ? "Modifier la vente" : "Vente rapide"}>
       <div style={{ padding: 16 }}>
         {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
         <PickerSelect label="Client *" value={clientNomSelected} onChange={setClientNomSelected} options={["", ...clients.map(c => c.nom)]} />
@@ -79,7 +108,24 @@ const VenteRapideForm = ({ onClose, onSaved }) => {
           </div>
         )}
       </div>
-      <FormFooter onSave={save} onClose={onClose} loading={loading} saveColor={C.success} saveLabel="Enregistrer" />
+      {confirmDelete ? (
+        <div style={{ padding: 16, borderTop: '1px solid '+C.card_border }}>
+          <div style={{ fontSize: 13, color: C.danger, marginBottom: 10, fontWeight: 600 }}>Supprimer cette vente ?</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid '+C.card_border, background: '#fff', fontWeight: 700, fontSize: 13 }}>Annuler</button>
+            <button onClick={handleDelete} disabled={loading} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: C.danger, color: '#fff', fontWeight: 700, fontSize: 13 }}>{loading ? '...' : 'Confirmer'}</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <FormFooter onSave={save} onClose={onClose} loading={loading} saveColor={C.success} saveLabel="Enregistrer" />
+          {venteEdit && (
+            <div style={{ padding: '0 16px 16px' }}>
+              <button onClick={() => setConfirmDelete(true)} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid '+C.danger, background: 'transparent', color: C.danger, fontWeight: 700, fontSize: 13 }}>Supprimer cette vente</button>
+            </div>
+          )}
+        </>
+      )}
     </Modal>
   );
 };
@@ -90,6 +136,7 @@ export const VentesPage = () => {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingVente, setEditingVente] = useState(null);
   const devise = useDevise();
 
   const load = useCallback(async () => {
@@ -157,9 +204,9 @@ export const VentesPage = () => {
         : filtered.length === 0
           ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary, fontSize: 13 }}>Aucune vente enregistree.</div>
           : filtered.map(v => (
-            <div key={v._id} style={{ marginBottom: 10 }}>
+            <div key={v._id} style={{ marginBottom: 10 }} onClick={() => setEditingVente(v)}>
               <Card>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 4, cursor: 'pointer' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.text_primary }}>{getClientNom(v.client_id)}</div>
                     <div style={{ fontSize: 11, color: C.text_secondary, marginTop: 2 }}>{v.produit} ×{v.quantite}</div>
@@ -180,6 +227,13 @@ export const VentesPage = () => {
 
       {showForm && (
         <VenteRapideForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} />
+      )}
+      {editingVente && (
+        <VenteRapideForm
+          venteEdit={editingVente}
+          onClose={() => setEditingVente(null)}
+          onSaved={() => { setEditingVente(null); load(); }}
+        />
       )}
     </div>
   );

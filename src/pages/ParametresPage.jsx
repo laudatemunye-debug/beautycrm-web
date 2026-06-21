@@ -77,6 +77,29 @@ export const ParametresPage = ({ user, onLogout }) => {
   );
 
   // Changer mot de passe
+  const [hasPassword, setHasPassword] = useState(null);
+  const [setupId, setSetupId] = useState({ username: '', nouveau: '', confirm: '' });
+
+  useEffect(() => {
+    getSetting('password').then(p => setHasPassword(!!p));
+  }, []);
+
+  const activerProtection = async () => {
+    if (!setupId.username.trim()) { showMsg('pw', '❌ Choisissez un identifiant.'); return; }
+    if (setupId.nouveau.length < 4) { showMsg('pw', '❌ Mot de passe trop court (min 4).'); return; }
+    if (setupId.nouveau !== setupId.confirm) { showMsg('pw', '❌ Mots de passe differents.'); return; }
+    setLoading(l => ({ ...l, pw: true }));
+    try {
+      await setSetting('username', setupId.username.trim());
+      await setSetting('password', await sha256(setupId.nouveau));
+      await setSetting('use_password', '1');
+      setSetupId({ username: '', nouveau: '', confirm: '' });
+      setHasPassword(true);
+      showMsg('pw', '✅ Protection activee !');
+    } catch(e) { showMsg('pw', '❌ ' + e.message); }
+    finally { setLoading(l => ({ ...l, pw: false })); }
+  };
+
   const changePassword = async () => {
     if (!pw.ancien || !pw.nouveau) { showMsg('pw', '❌ Remplissez tous les champs.'); return; }
     if (pw.nouveau.length < 4) { showMsg('pw', '❌ Mot de passe trop court (min 4).'); return; }
@@ -241,20 +264,36 @@ export const ParametresPage = ({ user, onLogout }) => {
       <Section icon="🔐" label="Mot de passe et Securite" color={C.accent}
             loading={syncing} open={open==='securite'} onToggle={() => toggle('securite')}>
         <div style={{ padding: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 12 }}>Modifier le mot de passe</div>
-          <Msg k="pw" />
-          <FieldInput label="Mot de passe actuel" value={pw.ancien} onChange={v => setPw(p=>({...p,ancien:v}))} type="password" />
-          <FieldInput label="Nouveau mot de passe" value={pw.nouveau} onChange={v => setPw(p=>({...p,nouveau:v}))} type="password" />
-          <FieldInput label="Confirmer" value={pw.confirm} onChange={v => setPw(p=>({...p,confirm:v}))} type="password" />
-          <PrimaryBtn label={loading.pw ? '...' : 'Modifier le mot de passe'} onClick={changePassword} style={{ marginBottom: 20 }} />
-          <div style={{ height: 1, backgroundColor: C.card_border, marginBottom: 20 }} />
-          <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 4 }}>Question de securite</div>
-          <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 12 }}>Permet de reinitialiser votre mot de passe si vous l'oubliez.</div>
-          <Msg k="sec" />
-          <PickerSelect label="Nouvelle question" value={secQ.question} onChange={v => setSecQ(q=>({...q,question:v}))} options={SECURITY_QUESTIONS} />
-          <FieldInput label="Nouvelle reponse (secrete)" value={secQ.reponse} onChange={v => setSecQ(q=>({...q,reponse:v}))} />
-          <FieldInput label="Mot de passe actuel (confirmation)" value={secQ.mdpConfirm} onChange={v => setSecQ(q=>({...q,mdpConfirm:v}))} type="password" />
-          <PrimaryBtn label="🔒 Modifier la question" onClick={changeSecQ} color={C.accent2 || C.accent} />
+          {hasPassword === false ? (
+            <>
+              <div style={{ backgroundColor: C.accent+'15', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:C.text_primary, marginBottom:4 }}>🔓 Acces libre actif</div>
+                <div style={{ fontSize:12, color:C.text_secondary }}>L'app s'ouvre sans mot de passe. Creez un identifiant pour activer la protection.</div>
+              </div>
+              <Msg k="pw" />
+              <FieldInput label="Identifiant (nom d'utilisateur)" value={setupId.username} onChange={v => setSetupId(s=>({...s,username:v}))} placeholder="Ex: Marie" />
+              <FieldInput label="Mot de passe" value={setupId.nouveau} onChange={v => setSetupId(s=>({...s,nouveau:v}))} type="password" placeholder="Min 4 caracteres" />
+              <FieldInput label="Confirmer" value={setupId.confirm} onChange={v => setSetupId(s=>({...s,confirm:v}))} type="password" />
+              <PrimaryBtn label={loading.pw ? '...' : '🔒 Activer la protection'} onClick={activerProtection} style={{ marginBottom: 20 }} />
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 12 }}>Modifier le mot de passe</div>
+              <Msg k="pw" />
+              <FieldInput label="Mot de passe actuel" value={pw.ancien} onChange={v => setPw(p=>({...p,ancien:v}))} type="password" />
+              <FieldInput label="Nouveau mot de passe" value={pw.nouveau} onChange={v => setPw(p=>({...p,nouveau:v}))} type="password" />
+              <FieldInput label="Confirmer" value={pw.confirm} onChange={v => setPw(p=>({...p,confirm:v}))} type="password" />
+              <PrimaryBtn label={loading.pw ? '...' : 'Modifier le mot de passe'} onClick={changePassword} style={{ marginBottom: 20 }} />
+              <div style={{ height: 1, backgroundColor: C.card_border, marginBottom: 20 }} />
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 4 }}>Question de securite</div>
+              <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 12 }}>Permet de reinitialiser votre mot de passe si vous l'oubliez.</div>
+              <Msg k="sec" />
+              <PickerSelect label="Nouvelle question" value={secQ.question} onChange={v => setSecQ(q=>({...q,question:v}))} options={SECURITY_QUESTIONS} />
+              <FieldInput label="Nouvelle reponse (secrete)" value={secQ.reponse} onChange={v => setSecQ(q=>({...q,reponse:v}))} />
+              <FieldInput label="Mot de passe actuel (confirmation)" value={secQ.mdpConfirm} onChange={v => setSecQ(q=>({...q,mdpConfirm:v}))} type="password" />
+              <PrimaryBtn label="🔒 Modifier la question" onClick={changeSecQ} color={C.accent2 || C.accent} />
+            </>
+          )}
           <div style={{ height: 1, backgroundColor: C.card_border, margin: "20px 0" }} />
           <div style={{ fontWeight: 700, fontSize: 13, color: C.danger, marginBottom: 8 }}>Zone de danger</div>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 12 }}>Supprimer definitivement votre compte et toutes vos donnees.</div>

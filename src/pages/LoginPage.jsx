@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { C, SECURITY_QUESTIONS, DEVISES } from '../theme';
-import { getSetting, setSetting, sha256 } from '../db/index';
+import { getSetting, setSetting, sha256, clearAllData } from '../db/index';
 import { trackUser } from '../hooks/useTracker';
 import { FieldInput, PrimaryBtn, GhostBtn, PickerSelect } from '../components/UI';
 
@@ -41,6 +41,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
   const [devise, setDevise] = useState(DEVISES[0].label);
   const [entreprise, setEntreprise] = useState('');
   const [role, setRole] = useState('Distributeur');
+  const [usePassword, setUsePassword] = useState(true);
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [secQ, setSecQ] = useState(SECURITY_QUESTIONS[0]);
@@ -63,7 +64,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
     setError(''); setLoading(true);
     try {
       const stored = await getSetting("password");
-      if (!stored) { setMode("setup"); return; }
+      if (!stored) { setStep(0); setMode("setup"); return; }
       const storedNom = await getSetting("username");
       if (storedNom && nom.trim().toLowerCase() !== storedNom.toLowerCase()) { setError("Nom incorrect."); return; }
       const hash = await sha256(pw);
@@ -82,15 +83,21 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
 
   const handleSetup = async () => {
     setError('');
-    if (newPw.length < 4) { setError('Mot de passe trop court (min 4).'); return; }
-    if (newPw !== confirmPw) { setError('Mots de passe differents.'); return; }
-    if (!secA.trim()) { setError('Repondez a la question de securite.'); return; }
+    await clearAllData();
+    if (usePassword) {
+      if (newPw.length < 4) { setError('Mot de passe trop court (min 4).'); return; }
+      if (newPw !== confirmPw) { setError('Mots de passe differents.'); return; }
+      if (!secA.trim()) { setError('Repondez a la question de securite.'); return; }
+    }
     setLoading(true);
     try {
-      await setSetting('password', await sha256(newPw));
+      await setSetting('password', usePassword ? await sha256(newPw) : '');
+      await setSetting('use_password', usePassword ? '1' : '0');
       await setSetting('username', setupNom.trim());
-      await setSetting('security_question', secQ);
-      await setSetting('security_answer', await sha256(secA.toLowerCase().trim()));
+      if (usePassword) {
+        await setSetting('security_question', secQ);
+        await setSetting('security_answer', await sha256(secA.toLowerCase().trim()));
+      }
       await setSetting('devise', devise);
       await setSetting('entreprise', entreprise);
       await setSetting('role', role);
@@ -102,7 +109,11 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       const { DEVISES } = await import("../theme");
       const found = DEVISES.find(d => d.label === devise);
       if (found) window.__DEVISE_SYMBOL__ = found.symbol;
-      setMode("login");
+      if (usePassword) {
+        setMode("login");
+      } else {
+        window.location.reload();
+      }
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -137,7 +148,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
 
         {mode==="welcome" && (
           <div style={{ textAlign:"center" }}>
-            <PrimaryBtn label="Creer un nouveau compte" onClick={() => setMode("setup")} style={{ marginBottom:12 }} />
+            <PrimaryBtn label="Creer un nouveau compte" onClick={() => { setError(""); setStep(0); setMode("setup"); }} style={{ marginBottom:12 }} />
             <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
             <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />
           </div>
@@ -147,8 +158,9 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           <FieldInput label="Nom d'utilisateur" value={nom} onChange={setNom} placeholder="Votre nom" />
           <FieldInput label="Mot de passe" value={pw} onChange={setPw} type="password" placeholder="Votre mot de passe" />
           <PrimaryBtn label="Se connecter" onClick={handleLogin} loading={loading} />
-          <div style={{ textAlign:'center', marginTop:14 }}>
+          <div style={{ textAlign:'center', marginTop:14, display:'flex', flexDirection:'column', gap:8 }}>
             <span onClick={() => setMode('reset')} style={{ color:C.accent, fontSize:13, cursor:'pointer', fontWeight:600 }}>Mot de passe oublie ?</span>
+            <span onClick={() => { setError(''); setStep(0); setMode('setup'); }} style={{ color:C.text_secondary, fontSize:13, cursor:'pointer' }}>Creer un nouveau compte</span>
           </div>
         </>)}
 
@@ -156,6 +168,15 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           <StepIndicator current={step} total={4} />
           {step===0 && (<>
             <FieldInput label="Nom complet *" value={setupNom} onChange={setSetupNom} placeholder="Ex: Marie Dupont" />
+            <div onClick={() => setUsePassword(p => !p)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', backgroundColor:C.bg_secondary||'#f5f5f7', borderRadius:10, padding:'12px 14px', marginBottom:14, cursor:'pointer' }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:C.text_primary }}>Proteger par mot de passe</div>
+                <div style={{ fontSize:11, color:C.text_secondary, marginTop:2 }}>{usePassword ? "L'app demandera un mot de passe a l'ouverture" : "Acces libre, sans mot de passe"}</div>
+              </div>
+              <div style={{ width:44, height:26, borderRadius:13, backgroundColor: usePassword ? C.accent : '#ccc', position:'relative', flexShrink:0, transition:'background-color .2s' }}>
+                <div style={{ width:20, height:20, borderRadius:'50%', backgroundColor:'#fff', position:'absolute', top:3, left: usePassword ? 21 : 3, transition:'left .2s', boxShadow:'0 1px 3px rgba(0,0,0,.3)' }} />
+              </div>
+            </div>
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.text_secondary, fontWeight:600, marginBottom:6 }}>Telephone WhatsApp</div>
               <div style={{ display:'flex', gap:8 }}>
@@ -177,10 +198,18 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <PickerSelect label="Votre role" value={role} onChange={setRole} options={ROLES} />
           </>)}
           {step===3 && (<>
-            <FieldInput label="Mot de passe *" value={newPw} onChange={setNewPw} type="password" placeholder="Min 4 caracteres" />
-            <FieldInput label="Confirmer le mot de passe" value={confirmPw} onChange={setConfirmPw} type="password" />
-            <PickerSelect label="Question de securite" value={secQ} onChange={setSecQ} options={SECURITY_QUESTIONS} />
-            <FieldInput label="Reponse secrete" value={secA} onChange={setSecA} placeholder="Votre reponse" />
+            {usePassword ? (<>
+              <FieldInput label="Mot de passe *" value={newPw} onChange={setNewPw} type="password" placeholder="Min 4 caracteres" />
+              <FieldInput label="Confirmer le mot de passe" value={confirmPw} onChange={setConfirmPw} type="password" />
+              <PickerSelect label="Question de securite" value={secQ} onChange={setSecQ} options={SECURITY_QUESTIONS} />
+              <FieldInput label="Reponse secrete" value={secA} onChange={setSecA} placeholder="Votre reponse" />
+            </>) : (
+              <div style={{ textAlign:'center', padding:'30px 10px' }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>🔓</div>
+                <div style={{ fontWeight:700, fontSize:15, color:C.text_primary, marginBottom:6 }}>Acces libre active</div>
+                <div style={{ fontSize:13, color:C.text_secondary }}>L'app s'ouvrira directement sans mot de passe.</div>
+              </div>
+            )}
           </>)}
           <div style={{ display:'flex', gap:10, marginTop:8 }}>
             {step>0 && <GhostBtn label="Retour" onClick={() => { setError(''); setStep(s=>s-1); }} style={{ flex:1 }} />}

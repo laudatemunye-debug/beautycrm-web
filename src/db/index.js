@@ -151,6 +151,7 @@ export const saveParticipant = async (data) => {
   await putDoc('participants', data);
 };
 export const deleteParticipant = (id) => softDelete('participants', id);
+export const deleteVente = (id) => softDelete('ventes', id);
 
 // EXPORT / IMPORT
 export const exportAllData = async () => {
@@ -178,6 +179,19 @@ export const importAllData = async (data) => {
 };
 
 export const resetDB = () => { _db = null; };
+
+export const clearAllData = async () => {
+  const database = await getDB();
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants'];
+  for (const table of tables) {
+    const tx = database.transaction(table, 'readwrite');
+    await tx.store.clear();
+    await tx.done;
+  }
+  const settingsTx = database.transaction('settings', 'readwrite');
+  await settingsTx.store.clear();
+  await settingsTx.done;
+};
 
 export const getDeviseSymbolSync = () => {
   try {

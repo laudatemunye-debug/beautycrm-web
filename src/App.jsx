@@ -46,8 +46,14 @@ export default function App() {
 
   useEffect(() => {
     getSetting("password").then(pw => {
-      if (!pw) setChecking(false);
-      else getSetting('username').then(() => setChecking(false));
+      if (!pw) {
+        getSetting('username').then(name => {
+          if (name) setUser(name);
+          setChecking(false);
+        });
+      } else {
+        getSetting('username').then(() => setChecking(false));
+      }
     }).catch(() => setChecking(false));
   }, [checking]);
 
