@@ -43,10 +43,26 @@ const ClientForm = ({ client, onClose, onSaved }) => {
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 14 }}>
         <div style={{ flex: 1, marginBottom: 0 }}><FieldInput label="Nom *" value={form.nom} onChange={v => setForm(f=>({...f,nom:v}))} placeholder="Nom du contact" autoComplete="name" /></div>
         <button onClick={async () => {
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          if (isIOS) {
+            // iOS: utiliser input file vcf
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.vcf,text/vcard';
+            input.onchange = async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const text = await file.text();
+              const nom = (text.match(/FN:(.+)/)?.[1] || text.match(/N:([^;]+)/)?.[1] || '').trim();
+              const tel = (text.match(/TEL[^:]*:(.+)/)?.[1] || '').replace(/s/g,'').trim();
+              const email = (text.match(/EMAIL[^:]*:(.+)/)?.[1] || '').trim();
+              if (nom || tel) setForm(f => ({ ...f, nom: nom || f.nom, telephone: tel || f.telephone, email: email || f.email }));
+            };
+            input.click();
+            return;
+          }
           if (!navigator.contacts) {
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            if (isIOS) { alert("Ouvrez cette page depuis beautycrm-web.vercel.app sur Safari pour importer vos contacts."); }
-            else { alert("Utilisez Chrome sur Android pour importer vos contacts."); }
+            alert("Utilisez Chrome sur Android pour importer vos contacts.");
             return;
           }
           try {
