@@ -6,6 +6,12 @@ import { useDevise } from "../hooks/useDevise";
 
 export const DashboardPage = ({ onNavigate }) => {
   const [kpis, setKpis] = useState({});
+  const [periode, setPeriode] = useState('mois');
+  const [periodeLabel, setPeriodeLabel] = useState('Ce mois');
+  const [showPicker, setShowPicker] = useState(false);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [ventesAll, setVentesAll] = useState([]);
   const [dernieresVentes, setDernieresVentes] = useState([]);
   const [rdvs, setRdvs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,11 +39,39 @@ export const DashboardPage = ({ onNavigate }) => {
         seminaires: seminaires.filter(s => s.date_event >= t).length,
       });
       setRdvs(rdvsUpcoming);
+      setVentesAll(ventes);
       setDernieresVentes(ventes.slice(0, 5));
       setLoading(false);
     };
     load();
   }, []);
+
+  const applyPeriode = (p, from, to) => {
+    const t = today();
+    let filtered;
+    if (p === 'mois') {
+      const mois = t.slice(0, 7);
+      filtered = ventesAll.filter(v => v.date_vente && v.date_vente.startsWith(mois));
+      setPeriodeLabel('Ce mois');
+    } else if (p === 'mois_dernier') {
+      const d = new Date(); d.setMonth(d.getMonth() - 1);
+      const mois = d.toISOString().slice(0, 7);
+      filtered = ventesAll.filter(v => v.date_vente && v.date_vente.startsWith(mois));
+      setPeriodeLabel('Mois dernier');
+    } else if (p === 'annee') {
+      const annee = t.slice(0, 4);
+      filtered = ventesAll.filter(v => v.date_vente && v.date_vente.startsWith(annee));
+      setPeriodeLabel('Cette année');
+    } else if (p === 'custom' && from && to) {
+      filtered = ventesAll.filter(v => v.date_vente && v.date_vente >= from && v.date_vente <= to);
+      setPeriodeLabel(from + ' → ' + to);
+    } else return;
+    const ca = filtered.reduce((s, v) => s + (v.prix_vente * v.quantite), 0);
+    const marge = filtered.reduce((s, v) => s + ((v.prix_vente - v.prix_achat) * v.quantite), 0);
+    setKpis(k => ({ ...k, ca, marge }));
+    setPeriode(p);
+    setShowPicker(false);
+  };
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}>
@@ -59,7 +93,7 @@ export const DashboardPage = ({ onNavigate }) => {
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </div>
         <div style={{ fontWeight: 800, fontSize: 20, color: C.text_primary }}>
-          Bonjour 👋
+          {(() => { const h = new Date().getHours(); if (h < 12) return "Bonjour 👋"; if (h < 18) return "Bon après-midi 👋"; return "Bonne soirée 🌙"; })()}
         </div>
       </div>
 
@@ -70,15 +104,45 @@ export const DashboardPage = ({ onNavigate }) => {
         marginBottom: 16,
         color: '#fff',
       }}>
-        <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontSize:11, opacity:0.8 }}>CA du mois</span><span style={{ fontSize:11, opacity:0.8 }}>Marge</span></div>
-        <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.ca, devise)}</span><span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.marge, devise)}</span></div>
+        <div onClick={() => setShowPicker(!showPicker)} style={{ cursor: 'pointer' }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:'center' }}>
+            <span style={{ fontSize:11, opacity:0.8 }}>CA · {periodeLabel}</span>
+            <span style={{ fontSize:11, opacity:0.8 }}>Marge ▾</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between" }}>
+            <span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.ca, devise)}</span>
+            <span style={{ fontWeight:800, fontSize:22 }}>{fmtMoney(kpis.marge, devise)}</span>
+          </div>
+        </div>
+        {showPicker && (
+          <div style={{ marginTop: 12, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: 10 }}>
+            <div style={{ display:'flex', gap: 6, flexWrap:'wrap', marginBottom: 8 }}>
+              {[['mois','Ce mois'],['mois_dernier','Mois dernier'],['annee','Cette année']].map(([p,l]) => (
+                <span key={p} onClick={() => applyPeriode(p)} style={{
+                  backgroundColor: periode === p ? '#fff' : 'rgba(255,255,255,0.2)',
+                  color: periode === p ? C.accent : '#fff',
+                  borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                }}>{l}</span>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap: 6, alignItems:'center' }}>
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                style={{ flex:1, borderRadius:6, border:'none', padding:'4px 6px', fontSize:12 }} />
+              <span style={{ color:'#fff' }}>→</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                style={{ flex:1, borderRadius:6, border:'none', padding:'4px 6px', fontSize:12 }} />
+              <span onClick={() => applyPeriode('custom', customFrom, customTo)}
+                style={{ backgroundColor:'#fff', color:C.accent, borderRadius:6, padding:'4px 8px', fontSize:12, cursor:'pointer', fontWeight:700 }}>OK</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-        <KpiCard title="Clients" value={kpis.clients} color={C.accent} icon="👤" />
-        <KpiCard title="Contacts" value={kpis.prospects} color={C.tag_prospect} icon="🤝" />
-        <KpiCard title="RDV aujourd'hui" value={kpis.rdvsToday} color={C.warning} icon="📅" />
-        <KpiCard title="Evenements a venir" value={kpis.seminaires} color={C.tag_event} icon="🎓" />
+        <KpiCard title="Clients" value={kpis.clients} color={C.accent} icon="👤" onClick={() => onNavigate('clients')} />
+        <KpiCard title="Contacts" value={kpis.prospects} color={C.tag_prospect} icon="🤝" onClick={() => onNavigate('contacts')} />
+        <KpiCard title="RDV aujourd'hui" value={kpis.rdvsToday} color={C.warning} icon="📅" onClick={() => onNavigate('rdvs')} />
+        <KpiCard title="Evenements a venir" value={kpis.seminaires} color={C.tag_event} icon="🎓" onClick={() => onNavigate('seminaires')} />
       </div>
 
       <SectionTitle title="Acces rapide" />

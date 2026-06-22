@@ -89,7 +89,11 @@ export const ProduitsPage = () => {
       {loading
         ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Chargement...</div>
         : filtered.length === 0
-          ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary, fontSize: 13 }}>Aucun produit. Ajoutez votre catalogue.</div>
+          ? <div style={{ textAlign:'center', padding:40 }}>
+              <div style={{ fontSize:40, marginBottom:10 }}>📦</div>
+              <div style={{ fontSize:14, color:C.text_secondary, marginBottom:16 }}>Aucun produit dans votre catalogue.</div>
+              <button onClick={() => { setEditProduit(null); setShowForm(true); }} style={{ backgroundColor:C.accent, color:'#fff', border:'none', borderRadius:12, padding:'12px 24px', fontWeight:700, fontSize:14, cursor:'pointer' }}>+ Ajouter un produit</button>
+            </div>
           : filtered.map(p => {
             const marge = (p.prix_vente||0) - (p.prix_achat||0);
             const pct = p.prix_vente ? Math.round(marge / p.prix_vente * 100) : 0;

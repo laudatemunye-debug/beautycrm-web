@@ -43,25 +43,53 @@ const ProspectForm = ({ prospect, onClose, onSaved }) => {
         {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 14 }}>
           <div style={{ flex: 1, marginBottom: 0 }}><FieldInput label="Nom *" value={form.nom} onChange={v => setForm(f=>({...f,nom:v}))} /></div>
-          <button onClick={async () => {
-            if (!("contacts" in navigator)) {
-              alert(/iPad|iPhone|iPod/.test(navigator.userAgent) ? "Import contacts non disponible sur iPhone en HTTP. Installez l'app en HTTPS pour cette fonctionnalite." : "Import contacts disponible sur Android Chrome uniquement.");
-              return;
-            }
-            try {
-              const cts = await navigator.contacts.select(["name","tel","email"], { multiple: false });
-              if (cts.length > 0) {
-              const c = cts[0];
-              const tel = c.tel?.[0] || "";
-              const PAYS_CODES = { "+243": "RDC", "+242": "Congo Brazzaville", "+237": "Cameroun", "+225": "Cote d Ivoire", "+221": "Senegal", "+33": "France", "+32": "Belgique", "+41": "Suisse", "+1": "USA", "+44": "Royaume-Uni", "+27": "Afrique du Sud", "+250": "Rwanda", "+257": "Burundi", "+256": "Ouganda", "+255": "Tanzanie", "+254": "Kenya", "+212": "Maroc", "+216": "Tunisie", "+213": "Algerie" };
-              let paysDetecte = "";
-              const telClean = tel.replace(/[\s\-]/g, "");
-              const sorted = Object.keys(PAYS_CODES).sort((a,b) => b.length - a.length);
-              for (const code of sorted) { if (telClean.startsWith(code)) { paysDetecte = PAYS_CODES[code]; break; } }
-              setForm(f => ({ ...f, nom: c.name?.[0]||f.nom, telephone: tel, email: c.email?.[0]||f.email, pays: paysDetecte||f.pays }));
-            }
-            } catch(err) { alert("Erreur : " + err.message); }
-          }} style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#3D5AFE", border: "none", cursor: "pointer", fontSize: 18, color: "#fff", flexShrink: 0, marginBottom: 14 }}>👤</button>
+          <>
+            <input id="csv-import" type="file" accept=".csv,text/csv,.vcf,text/vcard" style={{ display:'none' }} onChange={async e => {
+              const file = e.target.files?.[0]; if (!file) return;
+              e.target.value = '';
+              const text = await file.text();
+              if (file.name.endsWith('.vcf') || text.startsWith('BEGIN:VCARD')) {
+                const nom = (text.match(/FN:(.+)/)?.[1] || '').trim();
+                const tel = (text.match(/TEL[^:]*:(.+)/)?.[1] || '').trim();
+                const email = (text.match(/EMAIL[^:]*:(.+)/)?.[1] || '').trim();
+                if (nom || tel) setForm(f => ({ ...f, nom: nom||f.nom, telephone: tel||f.telephone, email: email||f.email }));
+                else alert('Aucune donnée trouvée dans ce fichier VCF.');
+                return;
+              }
+              const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+              if (lines.length < 2) { alert('CSV vide ou invalide.'); return; }
+              const headers = lines[0].split(',').map(h => h.toLowerCase().trim());
+              const vals = lines[1].split(',').map(v => v.replace(/^"|"$/g,'').trim());
+              const get = (...keys) => { for (const k of keys) { const i = headers.findIndex(h => h.includes(k)); if (i>=0 && vals[i]) return vals[i]; } return ''; };
+              const nom = get('nom','name','prenom');
+              const tel = get('tel','phone','mobile','portable');
+              const email = get('email','mail','courriel');
+              if (nom || tel) setForm(f => ({ ...f, nom: nom||f.nom, telephone: tel||f.telephone, email: email||f.email }));
+              else alert('Colonnes non reconnues. Utilisez des entêtes : nom, telephone, email');
+            }} />
+            <button type="button" onClick={async () => {
+              if ("contacts" in navigator) {
+                try {
+                  const PAYS_CODES = { "+243": "RDC", "+242": "Congo Brazzaville", "+237": "Cameroun", "+225": "Cote d Ivoire", "+221": "Senegal", "+33": "France", "+32": "Belgique", "+41": "Suisse", "+1": "USA", "+44": "Royaume-Uni", "+27": "Afrique du Sud", "+250": "Rwanda", "+257": "Burundi", "+256": "Ouganda", "+255": "Tanzanie", "+254": "Kenya", "+212": "Maroc", "+216": "Tunisie", "+213": "Algerie" };
+                  const cts = await navigator.contacts.select(["name","tel","email"], { multiple: false });
+                  if (cts.length > 0) {
+                    const ct = cts[0];
+                    const tel = ct.tel?.[0] || "";
+                    const telClean = tel.replace(/[\s\-]/g, "");
+                    let paysDetecte = "";
+                    for (const code of Object.keys(PAYS_CODES).sort((a,b) => b.length - a.length)) {
+                      if (telClean.startsWith(code)) { paysDetecte = PAYS_CODES[code]; break; }
+                    }
+                    setForm(f => ({ ...f, nom: ct.name?.[0]||f.nom, telephone: tel, email: ct.email?.[0]||f.email, pays: paysDetecte||f.pays }));
+                  }
+                } catch(err) { alert("Erreur : " + err.message); }
+              } else {
+                document.getElementById('csv-import').click();
+              }
+            }}
+              title="Importer un contact"
+              style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#3D5AFE", border: "none", cursor: "pointer", fontSize: 18, color: "#fff", flexShrink: 0, marginBottom: 14 }}>👤</button>
+          </>
         </div>
         <FieldInput label="Telephone (WhatsApp)" value={form.telephone} onChange={v => setForm(f=>({...f,telephone:v}))} type="tel" />
         <FieldInput label="Email" value={form.email} onChange={v => setForm(f=>({...f,email:v}))} type="email" />

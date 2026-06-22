@@ -7,7 +7,7 @@ export const Card = ({ children, style, onClick }) => (
     border: `1px solid ${C.card_border}`,
     padding: 14,
     overflow: 'hidden',
-    cursor: onClick ? 'pointer' : 'default',
+
     ...style,
   }}>
     {children}
@@ -142,6 +142,7 @@ export const SearchBar = ({ value, onChange, placeholder }) => (
       placeholder={placeholder || 'Rechercher...'}
       style={{
         flex: 1,
+
         border: 'none',
         background: 'transparent',
         fontSize: 13,
@@ -284,13 +285,14 @@ export const FormFooter = ({ onSave, onClose, saveLabel, saveColor, loading }) =
   </div>
 );
 
-export const KpiCard = ({ title, value, color, icon }) => (
-  <div style={{
+export const KpiCard = ({ title, value, color, icon, onClick }) => (
+  <div onClick={onClick} style={{
     backgroundColor: C.card_bg,
     borderRadius: 14,
     border: `1px solid ${C.card_border}`,
     padding: 14,
     flex: 1,
+
   }}>
     <div style={{ height: 3, backgroundColor: color, borderRadius: 2, marginBottom: 10 }} />
     <div style={{ fontSize: 22 }}>{icon}</div>

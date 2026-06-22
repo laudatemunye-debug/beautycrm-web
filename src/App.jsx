@@ -74,7 +74,7 @@ export default function App() {
       case 'dashboard':  return <DashboardPage onNavigate={setPage} />;
       case 'clients':    return <ClientsPage />;
       case 'contacts':   return <ContactsPage />;
-      case 'ventes':     return <VentesPage />;
+      case 'ventes':     return <VentesPage onNavigate={setPage} />;
       case 'produits':   return <ProduitsPage />;
       case 'seminaires': return <SeminairesPage />;
       case 'rdvs':       return <RdvsPage />;

@@ -288,7 +288,11 @@ export const ClientsPage = () => {
       {loading
         ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Chargement...</div>
         : filtered.length === 0
-          ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary, fontSize: 13 }}>Aucun client. Ajoutez votre premier client.</div>
+          ? <div style={{ textAlign:'center', padding:40 }}>
+              <div style={{ fontSize:40, marginBottom:10 }}>👥</div>
+              <div style={{ fontSize:14, color:C.text_secondary, marginBottom:16 }}>Aucun client pour l'instant.</div>
+              <button onClick={() => setShowForm(true)} style={{ backgroundColor:C.accent, color:'#fff', border:'none', borderRadius:12, padding:'12px 24px', fontWeight:700, fontSize:14, cursor:'pointer' }}>+ Ajouter un client</button>
+            </div>
           : filtered.map((c, i) => (
             <div key={c._id} style={{ marginBottom: 10 }}>
               <Card onClick={() => setSelectedClient(c)}>

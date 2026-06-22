@@ -4,10 +4,11 @@ import { getVentes, getClients, saveVente, getProduits, today, deleteVente } fro
 import { Card, SearchBar, SectionTitle, PrimaryBtn, FieldInput, PickerSelect, Modal, FormFooter, Badge, fmtMoney, fmtDate } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
 
-const VenteRapideForm = ({ onClose, onSaved, venteEdit }) => {
+const VenteRapideForm = ({ onClose, onSaved, venteEdit, onNavigate }) => {
   const [clients, setClients] = useState([]);
   const [produits, setProduits] = useState([]);
   const [clientNomSelected, setClientNomSelected] = useState("");
+
   const [form, setForm] = useState({ produit: '', prix_achat: '', prix_vente: '', quantite: '1', methode: 'Cash', notes: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -84,13 +85,19 @@ const VenteRapideForm = ({ onClose, onSaved, venteEdit }) => {
     <Modal visible onClose={onClose} title={venteEdit ? "Modifier la vente" : "Vente rapide"}>
       <div style={{ padding: 16 }}>
         {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
-        <PickerSelect label="Client *" value={clientNomSelected} onChange={setClientNomSelected} options={["", ...clients.map(c => c.nom)]} />
+        <PickerSelect label="Client *" value={clientNomSelected} onChange={setClientNomSelected} options={clients.length === 0 ? ["Aucun client enregistre"] : ["", ...clients.map(c => c.nom)]} />
+        {clients.length === 0 && (
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, marginTop:-8 }}><button onClick={onClose} style={{ background:'#3D5AFE', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:700, cursor:'pointer' }} onClick={() => { onClose(); onNavigate && onNavigate('clients'); }}>+ Ajouter un client</button></div>
+        )}
         {clientNomSelected && (
           <div style={{ fontSize: 12, color: C.accent, marginBottom: 10, fontWeight: 600 }}>
             {clientNomSelected}
           </div>
         )}
-        <PickerSelect label="Produit *" value={form.produit} onChange={onProduitChange} options={['', ...produits.map(p => p.nom)]} />
+        <PickerSelect label="Produit *" value={form.produit} onChange={onProduitChange} options={produits.length === 0 ? ["Aucun produit enregistre"] : ['', ...produits.map(p => p.nom)]} />
+        {produits.length === 0 && (
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, marginTop:-8 }}><button onClick={onClose} style={{ background:'#3D5AFE', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:700, cursor:'pointer' }} onClick={() => { onClose(); onNavigate && onNavigate('produits'); }}>+ Ajouter un produit</button></div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}><FieldInput label="Prix achat" value={form.prix_achat} onChange={v => setForm(f=>({...f,prix_achat:v}))} type="number" /></div>
           <div style={{ flex: 1 }}><FieldInput label="Prix vente *" value={form.prix_vente} onChange={v => setForm(f=>({...f,prix_vente:v}))} type="number" /></div>
@@ -130,7 +137,7 @@ const VenteRapideForm = ({ onClose, onSaved, venteEdit }) => {
   );
 };
 
-export const VentesPage = () => {
+export const VentesPage = ({ onNavigate }) => {
   const [ventes, setVentes] = useState([]);
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -226,13 +233,14 @@ export const VentesPage = () => {
       }
 
       {showForm && (
-        <VenteRapideForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} />
+        <VenteRapideForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} onNavigate={onNavigate} />
       )}
       {editingVente && (
         <VenteRapideForm
           venteEdit={editingVente}
           onClose={() => setEditingVente(null)}
           onSaved={() => { setEditingVente(null); load(); }}
+          onNavigate={onNavigate}
         />
       )}
     </div>
