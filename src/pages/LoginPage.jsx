@@ -162,6 +162,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           <div style={{ textAlign:'center', marginTop:14, display:'flex', flexDirection:'column', gap:8 }}>
             <span onClick={() => setMode('reset')} style={{ color:C.accent, fontSize:13, cursor:'pointer', fontWeight:600 }}>Mot de passe oublie ?</span>
             <span onClick={() => { setError(''); setStep(0); setMode('setup'); }} style={{ color:C.text_secondary, fontSize:13, cursor:'pointer' }}>Creer un nouveau compte</span>
+            <div style={{ fontSize:11, color:C.text_secondary, marginTop:12, lineHeight:1.6, textAlign:'center' }}>La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone</div>
           </div>
         </>)}
 
