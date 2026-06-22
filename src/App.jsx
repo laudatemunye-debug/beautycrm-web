@@ -34,7 +34,7 @@ export default function App() {
   useEffect(() => {
     if (!annonce) return;
     setCanDismiss(false);
-    setCountdown(10);
+    setCountdown(4);
     const timer = setInterval(() => {
       setCountdown(c => {
         if (c <= 1) { clearInterval(timer); setCanDismiss(true); return 0; }
