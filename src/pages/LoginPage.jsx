@@ -151,6 +151,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <PrimaryBtn label="Creer un nouveau compte" onClick={() => { setError(""); setStep(0); setMode("setup"); }} style={{ marginBottom:12 }} />
             <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
             <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />
+            <div style={{ fontSize:11, color:C.text_secondary, marginTop:16, lineHeight:1.6, textAlign:"center" }}>La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone</div>
           </div>
         )}
 
