@@ -169,6 +169,7 @@ export const importAllData = async (data) => {
     if (!data[key]) continue;
     const tx = db.transaction(key, 'readwrite');
     for (const item of data[key]) {
+      if (!item._id) continue;
       const existing = await tx.store.get(item._id);
       if (!existing || (item.updated_at && item.updated_at > (existing.updated_at||''))) {
         await tx.store.put(item);
