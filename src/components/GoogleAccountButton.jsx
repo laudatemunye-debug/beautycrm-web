@@ -110,7 +110,7 @@ export const GoogleAccountButton = ({ onSync }) => {
         doSync(resp.access_token);
       },
     });
-    tc.requestAccessToken({ prompt: '' });
+    tc.requestAccessToken({ prompt: 'select_account' });
   };
 
   if (googleUser) {
