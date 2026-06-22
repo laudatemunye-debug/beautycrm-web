@@ -123,7 +123,35 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
           ))}
         </div>
 
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: '0 20px 16px' }}>
+          <div style={{ height: 1, backgroundColor: '#2A3050', marginBottom: 16 }} />
+          <div
+            onClick={() => {
+              const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?\n\n💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !\n\n✅ Gestion clients & contacts\n✅ Suivi des ventes & marges\n✅ Agenda & rendez-vous\n✅ Rapports automatiques\n\n📲 Installe-la ici : ' + window.location.origin + '";
+              if (navigator.share) {
+                navigator.share({ title: 'BeautyCRM', text: msg, url: '' + window.location.origin + '' });
+              } else {
+                navigator.clipboard.writeText(msg).then(() => alert('Message copié ! Colle-le sur WhatsApp.'));
+              }
+            }}
+            style={{
+              backgroundColor: '#252B48',
+              border: '1px solid #2A3050',
+              borderRadius: 12,
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ fontSize: 20 }}>📲</span>
+            <div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>Recommander l'app</div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Partager avec tes contacts MLM</div>
+            </div>
+          </div>
           <div style={{ color: '#A0A8D0', fontSize: 11, textAlign: 'center' }}>
             V2.1 © 2026 IZIsoft
           </div>
