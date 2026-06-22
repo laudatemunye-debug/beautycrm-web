@@ -17,6 +17,27 @@ const INDICATIFS = [
   {pays:"Autre",code:"+00"},
 ];
 
+
+const PolitiqueContent = () => (
+  <div style={{ padding: '12px 16px 24px', fontSize: 13, color: '#333', lineHeight: 1.7 }}>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>1. Données collectées</div>
+    <div style={{ marginBottom: 10 }}>Seules les informations que <strong>vous saisissez vous-même</strong> sont utilisées (nom, téléphone, email, ville, pays, entreprise). <strong>IZIsoft ne collecte aucune donnée automatiquement et n'a aucun accès à vos informations.</strong></div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>2. Utilisation</div>
+    <div style={{ marginBottom: 10 }}>Vos données servent uniquement à faire fonctionner BeautyCRM sur votre appareil. <strong>IZIsoft n'y a aucun accès, ne les consulte pas et ne les partage jamais.</strong></div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>3. Stockage 100% local</div>
+    <div style={{ marginBottom: 10 }}>Toutes vos données restent sur votre appareil (IndexedDB). Aucun envoi automatique vers un serveur.</div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>4. Google Drive</div>
+    <div style={{ marginBottom: 10 }}>La sauvegarde Google Drive est optionnelle. IZIsoft n'a pas accès à vos sauvegardes.</div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>5. Sécurité</div>
+    <div style={{ marginBottom: 10 }}>Votre mot de passe est hashé (SHA-256). Personne, y compris IZIsoft, ne peut le lire.</div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>6. Vos droits</div>
+    <div style={{ marginBottom: 10 }}>Supprimez toutes vos données à tout moment via Paramètres → Supprimer mon compte.</div>
+    <div style={{ fontWeight: 700, marginBottom: 4 }}>7. Contact</div>
+    <div>📧 izisoft.app@gmail.com · 💬 +243 997 245 614</div>
+    <div style={{ marginTop: 14, fontSize: 11, color: '#aaa', textAlign: 'center' }}>© 2026 IZIsoft · BeautyCRM</div>
+  </div>
+);
+
 const StepIndicator = ({ current, total }) => (
   <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:24 }}>
     {Array.from({length:total}).map((_,i) => (
@@ -49,6 +70,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
   const [secAInput, setSecAInput] = useState('');
   const [resetPw, setResetPw] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
+  const [showPolitique, setShowPolitique] = useState(false);
 
   useEffect(() => {
     getSetting("password").then(p => { if (p) setMode("login"); else setMode("welcome"); }).catch(() => setMode("welcome"));
@@ -76,7 +98,20 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
 
   const nextStep = () => {
     setError('');
-    if (step === 0 && !setupNom.trim()) { setError('Le nom est obligatoire.'); return; }
+    if (step === 0) {
+      if (!setupNom.trim()) { setError('Le nom complet est obligatoire.'); return; }
+      if (!telephone.trim()) { setError('Le telephone WhatsApp est obligatoire.'); return; }
+      if (!email.trim()) { setError("L'email est obligatoire."); return; }
+    }
+    if (step === 1) {
+      if (!pays.trim()) { setError('Le pays est obligatoire.'); return; }
+      if (!ville.trim()) { setError('La ville est obligatoire.'); return; }
+      if (!devise.trim()) { setError('La devise est obligatoire.'); return; }
+    }
+    if (step === 2) {
+      if (!entreprise.trim()) { setError("Le nom de l'entreprise est obligatoire."); return; }
+      if (!role.trim()) { setError('Le role est obligatoire.'); return; }
+    }
     if (step === 3) { handleSetup(); return; }
     setStep(s => s + 1);
   };
@@ -211,10 +246,31 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
               </div>
             )}
           </>)}
+          {step===3 && (
+            <div style={{ textAlign:'center', fontSize:11, color:'#888', marginTop:8, marginBottom:4 }}>
+              En créant votre compte, vous acceptez notre{' '}
+              <span onClick={() => setShowPolitique(true)} style={{ color:'#3D5AFE', cursor:'pointer', fontWeight:600 }}>
+                politique de confidentialité
+              </span>
+            </div>
+          )}
           <div style={{ display:'flex', gap:10, marginTop:8 }}>
             {step>0 && <GhostBtn label="Retour" onClick={() => { setError(''); setStep(s=>s-1); }} style={{ flex:1 }} />}
             <PrimaryBtn label={step===3?'Creer mon compte':'Suivant'} onClick={nextStep} loading={loading} style={{ flex:2 }} />
           </div>
+          {showPolitique && (
+            <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+              <div style={{ backgroundColor:'#fff', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:480, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 20px', borderBottom:'1px solid #eee' }}>
+                  <span style={{ fontWeight:800, fontSize:15 }}>Politique de confidentialité</span>
+                  <span onClick={() => setShowPolitique(false)} style={{ fontSize:24, cursor:'pointer', color:'#888' }}>×</span>
+                </div>
+                <div style={{ overflowY:'auto', flex:1, padding:'0 4px' }}>
+                  <PolitiqueContent />
+                </div>
+              </div>
+            </div>
+          )}
         </>)}
 
         {mode==="restore" && (

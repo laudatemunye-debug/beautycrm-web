@@ -38,6 +38,49 @@ const Section = ({ icon, label, color, children, open, onToggle }) => (
   </div>
 );
 
+
+export const PolitiqueConfidentialite = () => (
+  <div style={{ padding: '0 16px 16px' }}>
+    <div style={{ fontSize: 13, color: '#333', lineHeight: 1.7 }}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: '#1a1f36' }}>Politique de Confidentialité — BeautyCRM</div>
+      <div style={{ fontSize: 11, color: '#888', marginBottom: 16 }}>Dernière mise à jour : Juin 2026 · IZIsoft</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>1. Données collectées</div>
+      <div style={{ marginBottom: 12 }}>BeautyCRM collecte uniquement les informations que <strong>vous saisissez vous-même</strong> : nom, prénom, numéro de téléphone, adresse email, ville, pays, nom d'entreprise et rôle professionnel. <strong>IZIsoft ne collecte aucune donnée automatiquement et n'a aucun accès à vos informations personnelles.</strong> Toutes vos données restent exclusivement sur votre appareil.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>2. Utilisation des données</div>
+      <div style={{ marginBottom: 12 }}>Vos données sont utilisées exclusivement par vous-même pour le fonctionnement de BeautyCRM : gestion de vos clients, contacts, rendez-vous, ventes et événements. <strong>IZIsoft n'a aucun accès à vos données, ne les consulte pas, ne les analyse pas et ne les partage jamais avec des tiers.</strong> Elles ne sont en aucun cas vendues, louées ou exploitées commercialement.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>3. Stockage local</div>
+      <div style={{ marginBottom: 12 }}>Toutes vos données sont stockées localement sur votre appareil via IndexedDB. BeautyCRM fonctionne 100% hors ligne. Aucune donnée n'est envoyée automatiquement vers un serveur distant.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>4. Sauvegarde Google Drive</div>
+      <div style={{ marginBottom: 12 }}>Si vous activez la synchronisation Google Drive, vos données sont sauvegardées dans votre propre espace Google Drive personnel. IZIsoft n'a pas accès à ces sauvegardes. Cette fonctionnalité est entièrement optionnelle.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>5. Partage des données</div>
+      <div style={{ marginBottom: 12 }}>BeautyCRM ne partage aucune donnée personnelle avec des tiers. Les seules transmissions possibles sont celles que vous initiez vous-même (export CSV, partage WhatsApp, etc.).</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>6. Sécurité</div>
+      <div style={{ marginBottom: 12 }}>Votre mot de passe est hashé (SHA-256) avant d'être stocké. Il est impossible pour quiconque, y compris IZIsoft, de le lire. Votre question de sécurité est également hashée.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>7. Vos droits</div>
+      <div style={{ marginBottom: 12 }}>Vous pouvez à tout moment supprimer l'intégralité de vos données depuis Paramètres → Supprimer mon compte. Cette action est irréversible et efface toutes les données locales.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>8. Mineurs</div>
+      <div style={{ marginBottom: 12 }}>BeautyCRM est destiné aux professionnels adultes. L'application n'est pas destinée aux personnes de moins de 18 ans.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>9. Modifications</div>
+      <div style={{ marginBottom: 12 }}>IZIsoft se réserve le droit de modifier cette politique. Toute modification sera notifiée via une mise à jour de l'application.</div>
+
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>10. Contact</div>
+      <div style={{ marginBottom: 4 }}>Pour toute question relative à vos données :</div>
+      <div>📧 izisoft.app@gmail.com</div>
+      <div>💬 WhatsApp : +243 997 245 614</div>
+      <div style={{ marginTop: 16, fontSize: 11, color: '#aaa', textAlign: 'center' }}>© 2026 IZIsoft · Tous droits réservés</div>
+    </div>
+  </div>
+);
+
 export const ParametresPage = ({ user, onLogout }) => {
   const [open, setOpen] = useState(null);
   const [entreprise, setEntreprise] = useState("");
@@ -333,6 +376,11 @@ export const ParametresPage = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Section Politique */}
+      <Section icon="📜" label="Politique de confidentialite" color="#8B5CF6" open={open==='politique'} onToggle={() => toggle('politique')}>
+        <PolitiqueConfidentialite />
+      </Section>
 
       {/* Footer */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
