@@ -92,7 +92,7 @@ export const ParametresPage = ({ user, onLogout }) => {
     getSetting("role").then(r => { if (r) setRole(r); });
     getSetting("pays").then(p => { if (p) setPays(p); });
   }, []);
-  const { googleUser, syncing, error: gError, connect, disconnect, uploadBackup, downloadBackup, mergeSync } = useGoogle();
+  const { googleUser, syncing, authReady, error: gError, connect, disconnect, uploadBackup, downloadBackup, mergeSync } = useGoogle();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deletePw, setDeletePw] = useState("");
