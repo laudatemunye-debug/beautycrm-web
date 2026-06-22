@@ -133,7 +133,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
   const STEP_SUBS = ['Vos informations personnelles','Votre pays et devise','Votre activite','Votre mot de passe'];
 
   return (
-    <div style={{ minHeight:'100vh', backgroundColor:C.sidebar_bg, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+    <div style={{ minHeight:'100vh', backgroundColor:C.sidebar_bg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ backgroundColor:'#fff', borderRadius:24, padding:28, width:'100%', maxWidth:400, boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
         <div style={{ textAlign:'center', marginBottom:24 }}>
           <div style={{ width:72, height:72, borderRadius:20, backgroundColor:C.accent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 12px' }}>💄</div>
@@ -151,7 +151,6 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <PrimaryBtn label="Creer un nouveau compte" onClick={() => { setError(""); setStep(0); setMode("setup"); }} style={{ marginBottom:12 }} />
             <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
             <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />
-            <div style={{ fontSize:11, color:C.text_secondary, marginTop:16, lineHeight:1.6, textAlign:"center" }}>La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone</div>
           </div>
         )}
 
@@ -162,7 +161,6 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           <div style={{ textAlign:'center', marginTop:14, display:'flex', flexDirection:'column', gap:8 }}>
             <span onClick={() => setMode('reset')} style={{ color:C.accent, fontSize:13, cursor:'pointer', fontWeight:600 }}>Mot de passe oublie ?</span>
             <span onClick={() => { setError(''); setStep(0); setMode('setup'); }} style={{ color:C.text_secondary, fontSize:13, cursor:'pointer' }}>Creer un nouveau compte</span>
-            <div style={{ fontSize:11, color:C.text_secondary, marginTop:12, lineHeight:1.6, textAlign:'center' }}>La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone</div>
           </div>
         </>)}
 
@@ -252,6 +250,9 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           <PrimaryBtn label="Reinitialiser" onClick={handleReset} loading={loading} />
           <GhostBtn label="Retour" onClick={() => setMode('login')} style={{ marginTop:10 }} />
         </>)}
+      </div>
+      <div style={{ marginTop:24, textAlign:'center', color:'rgba(255,255,255,0.6)', fontSize:12, lineHeight:1.8 }}>
+        La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone
       </div>
     </div>
   );
