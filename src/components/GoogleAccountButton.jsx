@@ -1,8 +1,4 @@
 import React, { useState } from 'react';
-import { useGoogle } from '../hooks/useGoogle';
-
-const CLIENT_ID = '6659063018-gs71riiatkgkk4gc6nuou23b8rut3a6b.apps.googleusercontent.com';
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 const S = {
   card: { display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#fff', border:'1px solid #e0e0e0', borderRadius:'8px', boxShadow:'0 1px 3px rgba(0,0,0,.08)', minWidth:0 },
@@ -20,7 +16,6 @@ const S = {
   connectBtn: { display:'flex', alignItems:'center', gap:10, padding:'8px 14px', background:'#fff', border:'1px solid #dadce0', borderRadius:8, cursor:'pointer', boxShadow:'0 1px 3px rgba(0,0,0,.08)', fontSize:13, fontWeight:500, color:'#3c4043', width:'100%' },
   googleLogo: { width:18, height:18, flexShrink:0 },
   meta: { fontSize:10, color:'#999', marginTop:5, paddingLeft:2 },
-  warn: { color:'#f59e0b', marginLeft:8 },
   err: { marginTop:6, fontSize:11, color:'#d93025' },
   ok: { marginTop:6, fontSize:11, color:'#34A853' },
 };
@@ -49,25 +44,18 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
 };
 
-export const GoogleAccountButton = ({ onSync }) => {
-  const { googleUser, authReady, error, connect, disconnect } = useGoogle();
+export const GoogleAccountButton = ({ googleUser, authReady, error, connect, disconnect, onSync }) => {
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg]         = useState('');
   const [isOk, setIsOk]       = useState(true);
   const [lastSync, setLastSync] = useState(() => localStorage.getItem('beautycrm_last_sync') || '');
   const initials = googleUser ? (googleUser.name || googleUser.email).slice(0,1).toUpperCase() : '';
 
-  const doSync = async (token) => {
-    if (!navigator.onLine) {
-      setIsOk(false);
-      setMsg('Pas de connexion internet');
-      setTimeout(() => setMsg(''), 4000);
-      return;
-    }
-    setSyncing(true);
-    setMsg('');
+  const doSync = async () => {
+    if (!navigator.onLine) { setIsOk(false); setMsg('Pas de connexion internet'); return; }
+    setSyncing(true); setMsg('');
     try {
-      const ok = await onSync(token);
+      const ok = await onSync();
       if (ok) {
         const now = new Date().toISOString();
         localStorage.setItem('beautycrm_last_sync', now);
@@ -87,32 +75,6 @@ export const GoogleAccountButton = ({ onSync }) => {
     }
   };
 
-  const handleSync = () => {
-    if (syncing || !onSync) return;
-    const cachedToken  = window.__gtoken  || sessionStorage.getItem('__gtoken');
-    const cachedExpiry = window.__gexpiry || parseInt(sessionStorage.getItem('__gexpiry') || '0');
-    if (cachedToken && cachedExpiry && Date.now() < cachedExpiry) {
-      window.__gtoken  = cachedToken;
-      window.__gexpiry = cachedExpiry;
-      doSync(cachedToken);
-      return;
-    }
-    if (!window.google?.accounts?.oauth2) { setIsOk(false); setMsg('Google non disponible'); return; }
-    const tc = window.google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPE,
-      callback: (resp) => {
-        if (resp.error) { setIsOk(false); setMsg('Erreur token'); setSyncing(false); return; }
-        window.__gtoken  = resp.access_token;
-        window.__gexpiry = Date.now() + (resp.expires_in - 120) * 1000;
-        sessionStorage.setItem('__gtoken',  resp.access_token);
-        sessionStorage.setItem('__gexpiry', window.__gexpiry.toString());
-        doSync(resp.access_token);
-      },
-    });
-    tc.requestAccessToken({ prompt: 'select_account' });
-  };
-
   if (googleUser) {
     return (
       <div>
@@ -125,21 +87,16 @@ export const GoogleAccountButton = ({ onSync }) => {
           <div style={S.info}>
             <span style={S.name}>{googleUser.name || googleUser.email}</span>
             <span style={S.email}>{googleUser.email}</span>
-            <span style={S.badge}>
-              <span style={S.dot}/>
-              {syncing ? 'Synchronisation...' : 'Drive connecte'}
-            </span>
+            <span style={S.badge}><span style={S.dot}/>{syncing ? 'Synchronisation...' : 'Drive connecte'}</span>
           </div>
           <div style={S.actions}>
-            <button style={syncing ? S.syncBtnOff : S.syncBtn} onClick={handleSync} disabled={syncing} title="Synchroniser">
+            <button style={syncing ? S.syncBtnOff : S.syncBtn} onClick={doSync} disabled={syncing} title="Synchroniser">
               <SyncIcon spinning={syncing} />
             </button>
             <button style={S.disconnectBtn} onClick={disconnect}>Deconnecter</button>
           </div>
         </div>
-        <div style={S.meta}>
-          {lastSync ? ('Derniere sync: ' + fmtDate(lastSync)) : 'Jamais synchronise'}
-        </div>
+        <div style={S.meta}>{lastSync ? ('Derniere sync: ' + fmtDate(lastSync)) : 'Jamais synchronise'}</div>
         {msg ? <div style={isOk ? S.ok : S.err}>{isOk ? '✓ ' : '✗ '}{msg}</div> : null}
         {error ? <div style={S.err}>{'⚠ ' + error}</div> : null}
       </div>

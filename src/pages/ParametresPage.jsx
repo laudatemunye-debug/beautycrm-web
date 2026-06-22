@@ -274,8 +274,12 @@ export const ParametresPage = ({ user, onLogout }) => {
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>Sync uniquement quand connexion disponible.</div>
           <GoogleAccountButton
-            onSync={async (token) => { const data = await exportAllData(); return await mergeSync(data, token); }}
-            localData={null}
+            googleUser={googleUser}
+            authReady={authReady}
+            error={gError}
+            connect={connect}
+            disconnect={disconnect}
+            onSync={async () => { const data = await exportAllData(); return await mergeSync(data); }}
           />
 
         </div>
