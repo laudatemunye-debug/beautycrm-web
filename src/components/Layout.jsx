@@ -8,11 +8,11 @@ const NAV_ITEMS = [
   { id: 'clients',    icon: '👤', label: 'Clients' },
   { id: 'contacts',   icon: '🤝', label: 'Contacts' },
   { id: 'ventes',     icon: '🛍', label: 'Ventes' },
-  { id: 'produits',   icon: '📦', label: 'Produits' },
+  { id: 'produits',   icon: '📦', label: 'Gestion de stock' },
   { id: 'seminaires', icon: '🎓', label: 'Seminaires' },
   { id: 'rdvs',       icon: '📅', label: 'Rendez-vous' },
   { id: 'relances',   icon: '🔔', label: 'Relances' },
-  { id: 'rapports',   icon: '📊', label: 'Rapports' },
+  { id: 'stock', icon: '📦', label: 'Stock' },
   { id: 'parametres', icon: '⚙', label: 'Parametres' },
 ];
 
@@ -21,7 +21,7 @@ const BOTTOM_NAV = [
   { id: 'clients',    icon: '👤', label: 'Clients' },
   { id: 'ventes',     icon: '🛍', label: 'Ventes' },
   { id: 'contacts',   icon: '🤝', label: 'Contacts' },
-  { id: 'rapports',   icon: '📊', label: 'Rapports' },
+  { id: 'stock', icon: '📦', label: 'Stock' },
 ];
 
 export const PAGE_TITLES = {
@@ -177,8 +177,6 @@ const Header = ({ title, onMenu, user }) => {
       right: 0,
       top: 0,
       zIndex: 100,
-      top: 0,
-      zIndex: 100,
     }}>
       <div onClick={onMenu} style={{ cursor: 'pointer', padding: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
         {[24, 18, 24].map((w, i) => (
@@ -236,14 +234,14 @@ const BottomNav = ({ active, onNavigate }) => (
   </div>
 );
 
-export const Layout = ({ page, onNavigate, user, children, autoSyncing }) => {
+export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateAvailable, applyUpdate } = useUpdateSW();
 
   return (
     <div style={{ backgroundColor: C.page_bg, minHeight: '100vh', maxWidth: '100%', margin: '0 auto', position: 'relative' }}>
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={onNavigate} active={page} user={user} />
-      <Header title={PAGE_TITLES[page]} onMenu={() => setDrawerOpen(true)} user={user} />
+      {!hideHeader && <Header title={PAGE_TITLES[page]} onMenu={() => setDrawerOpen(true)} user={user} />}
 
       {autoSyncing && (
         <div style={{
@@ -275,11 +273,11 @@ export const Layout = ({ page, onNavigate, user, children, autoSyncing }) => {
         </div>
       )}
 
-      <div style={{ paddingBottom: 80, paddingTop: 56 }}>
+      <div style={{ paddingBottom: 80, paddingTop: hideHeader ? 0 : 56 }}>
         {children}
       </div>
 
-      <BottomNav active={page} onNavigate={onNavigate} />
+      {!hideHeader && <BottomNav active={page} onNavigate={onNavigate} />}
     </div>
   );
 };

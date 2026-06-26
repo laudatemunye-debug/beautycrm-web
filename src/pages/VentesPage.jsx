@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C } from '../theme';
-import { getVentes, getClients, saveVente, getProduits, today, deleteVente } from '../db/index';
+import { getVentes, getClients, saveVente, getProduits, adjustStock, today, deleteVente } from '../db/index';
 import { Card, SearchBar, SectionTitle, PrimaryBtn, FieldInput, PickerSelect, Modal, FormFooter, Badge, fmtMoney, fmtDate } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
 
@@ -63,19 +63,37 @@ const VenteRapideForm = ({ onClose, onSaved, venteEdit, onNavigate }) => {
     if (!form.produit.trim()) { setError('Choisissez un produit.'); return; }
     const pv = parseFloat(form.prix_vente);
     if (!pv || pv <= 0) { setError('Prix de vente invalide.'); return; }
+    const qteDemandee = parseInt(form.quantite) || 1;
+    const produitSel = produits.find(p => p.nom === form.produit);
+    const ancienneQteVente = venteEdit ? (venteEdit.quantite || 0) : 0;
+    if (produitSel && produitSel.stock != null) {
+      const stockDisponiblePourCetteVente = produitSel.stock + ancienneQteVente;
+      if (qteDemandee > stockDisponiblePourCetteVente) {
+        setError(`Stock insuffisant. Disponible : ${stockDisponiblePourCetteVente}.`);
+        return;
+      }
+    }
     setLoading(true);
     try {
+      const qte = parseInt(form.quantite) || 1;
       await saveVente({
         ...(venteEdit ? { _id: venteEdit._id } : {}),
         client_id: clientId,
         produit: form.produit,
-        quantite: parseInt(form.quantite) || 1,
+        quantite: qte,
         prix_achat: parseFloat(form.prix_achat) || 0,
         prix_vente: pv,
         date_vente: venteEdit ? venteEdit.date_vente : today(),
         methode_paiement: form.methode,
         notes: form.notes,
       });
+      if (venteEdit) {
+        const ancienneQte = venteEdit.quantite || 0;
+        const diff = ancienneQte - qte;
+        if (diff !== 0) await adjustStock(form.produit, diff);
+      } else {
+        await adjustStock(form.produit, -qte);
+      }
       onSaved();
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
@@ -84,7 +102,15 @@ const VenteRapideForm = ({ onClose, onSaved, venteEdit, onNavigate }) => {
   return (
     <Modal visible onClose={onClose} title={venteEdit ? "Modifier la vente" : "Vente rapide"}>
       <div style={{ padding: 16 }}>
-        {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+        {error && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setError('')}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 24, maxWidth: 320, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>⛔</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text_primary, marginBottom: 16 }}>{error}</div>
+              <button onClick={() => setError('')} style={{ backgroundColor: C.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
         <PickerSelect label="Client *" value={clientNomSelected} onChange={setClientNomSelected} options={clients.length === 0 ? ["Aucun client enregistre"] : ["", ...clients.map(c => c.nom)]} />
         {clients.length === 0 && (
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, marginTop:-8 }}><button onClick={onClose} style={{ background:'#3D5AFE', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:700, cursor:'pointer' }} onClick={() => { onClose(); onNavigate && onNavigate('clients'); }}>+ Ajouter un client</button></div>

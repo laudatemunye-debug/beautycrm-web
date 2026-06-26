@@ -26,6 +26,7 @@ export default function App() {
   const [loginKey, setLoginKey] = useState(0);
   const [canDismiss, setCanDismiss] = useState(false);
   const [countdown, setCountdown] = useState(10);
+  const [hideHeader, setHideHeader] = useState(false);
   const isOnline = useNetwork();
   useDevise();
   const { annonce, dismiss } = useAnnonces();
@@ -75,7 +76,8 @@ export default function App() {
       case 'clients':    return <ClientsPage />;
       case 'contacts':   return <ContactsPage />;
       case 'ventes':     return <VentesPage onNavigate={setPage} />;
-      case 'produits':   return <ProduitsPage />;
+      case 'produits':   return <ProduitsPage onHideHeader={setHideHeader} />;
+      case 'stock':      return <ProduitsPage onHideHeader={setHideHeader} />;
       case 'seminaires': return <SeminairesPage />;
       case 'rdvs':       return <RdvsPage />;
       case 'relances':   return <RelancesPage />;
@@ -116,7 +118,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <Layout page={page} onNavigate={setPage} user={user}>
+      <Layout page={page} onNavigate={setPage} user={user} hideHeader={hideHeader}>
         {renderPage()}
       </Layout>
       {needRefresh && (

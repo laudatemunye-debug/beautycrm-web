@@ -1,8 +1,8 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'beautycrm';
-const DB_VERSION = 1;
-const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings'];
+const DB_VERSION = 2;
+const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements'];
 
 let _db = null;
 const getDB = async () => {
@@ -98,6 +98,47 @@ export const saveProduit = async (data) => {
 };
 export const deleteProduit = (id) => softDelete('produits', id);
 
+export const getProduitByNom = async (nom) => {
+  const all = await getProduits();
+  return all.find(p => p.nom === nom) || null;
+};
+
+export const adjustStock = async (nom, delta) => {
+  const p = await getProduitByNom(nom);
+  if (!p || p.stock == null) return;
+  const nouveauStock = Math.max(0, (p.stock || 0) + delta);
+  await saveProduit({ ...p, stock: nouveauStock });
+};
+
+export const addStock = async (nom, qte) => {
+  const p = await getProduitByNom(nom);
+  if (!p) return;
+  const nouveauStock = (p.stock || 0) + qte;
+  await saveProduit({ ...p, stock: nouveauStock });
+};
+
+export const getTendances = async (jours = 30) => {
+  const ventes = await getVentes();
+  const limite = new Date(Date.now() - jours*24*60*60*1000).toISOString().split('T')[0];
+  const counts = {};
+  for (const v of ventes) {
+    if (v.date_vente && v.date_vente >= limite) {
+      counts[v.produit] = (counts[v.produit]||0) + (v.quantite||1);
+    }
+  }
+  return counts;
+};
+
+// APPROVISIONNEMENTS (historique)
+export const getApprovisionnements = async () => {
+  const all = await getAll('approvisionnements');
+  return all.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.created_at||'').localeCompare(a.created_at||''));
+};
+export const saveApprovisionnement = async (data) => {
+  if (!data._id) data._id = generateId();
+  await putDoc('approvisionnements', { ...data, created_at: nowISO() });
+};
+
 // VENTES
 export const getVentes = async () => {
   const all = await getAll('ventes');
@@ -151,20 +192,27 @@ export const saveParticipant = async (data) => {
   await putDoc('participants', data);
 };
 export const deleteParticipant = (id) => softDelete('participants', id);
-export const deleteVente = (id) => softDelete('ventes', id);
+export const deleteVente = async (id) => {
+  const db = await getDB();
+  const vente = await db.get('ventes', id);
+  await softDelete('ventes', id);
+  if (vente && vente.produit) {
+    await adjustStock(vente.produit, vente.quantite || 0);
+  }
+};
 
 // EXPORT / IMPORT
 export const exportAllData = async () => {
   const db = await getDB();
-  const [clients, produits, ventes, prospects, rdvs, seminaires, participants] = await Promise.all(
+  const [clients, produits, ventes, prospects, rdvs, seminaires, participants, approvisionnements] = await Promise.all(
     STORES.filter(s => s !== 'settings').map(s => db.getAll(s))
   );
-  return { clients, produits, ventes, prospects, rdvs, seminaires, participants, exported_at: nowISO() };
+  return { clients, produits, ventes, prospects, rdvs, seminaires, participants, approvisionnements, exported_at: nowISO() };
 };
 
 export const importAllData = async (data) => {
   const db = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
   for (const key of tables) {
     if (!data[key]) continue;
     const tx = db.transaction(key, 'readwrite');
@@ -183,7 +231,7 @@ export const resetDB = () => { _db = null; };
 
 export const clearAllData = async () => {
   const database = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
   for (const table of tables) {
     const tx = database.transaction(table, 'readwrite');
     await tx.store.clear();

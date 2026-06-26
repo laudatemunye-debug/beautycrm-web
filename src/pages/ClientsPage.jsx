@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C, CANAUX } from '../theme';
-import { getClients, saveClient, deleteClient, getVentes, saveVente, getProduits, today, nowISO, generateId } from '../db/index';
+import { getClients, saveClient, deleteClient, getVentes, saveVente, getProduits, adjustStock, today, nowISO, generateId } from '../db/index';
 import { Card, SearchBar, SectionTitle, PrimaryBtn, GhostBtn, FieldInput, PickerSelect, Modal, FormFooter, Avatar, Badge, Divider, fmtMoney, fmtDate } from '../components/UI';
 import { useDevise } from '../hooks/useDevise';
 
@@ -39,7 +39,15 @@ const ClientForm = ({ client, onClose, onSaved }) => {
   return (
     <Modal visible onClose={onClose} title={client ? 'Modifier client' : 'Nouveau client'}>
       <div style={{ padding: 16 }}>
-        {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+        {error && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setError('')}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 24, maxWidth: 320, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>⛔</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text_primary, marginBottom: 16 }}>{error}</div>
+              <button onClick={() => setError('')} style={{ backgroundColor: C.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 14 }}>
         <div style={{ flex: 1, marginBottom: 0 }}><FieldInput label="Nom *" value={form.nom} onChange={v => setForm(f=>({...f,nom:v}))} placeholder="Nom du contact" autoComplete="name" /></div>
         <button onClick={async () => {
@@ -107,18 +115,26 @@ const VenteForm = ({ clientId, clientNom, onClose, onSaved }) => {
     if (!form.produit.trim()) { setError('Choisissez un produit.'); return; }
     const pv = parseFloat(form.prix_vente);
     if (!pv || pv <= 0) { setError('Prix de vente invalide.'); return; }
+    const qteDemandee = parseInt(form.quantite) || 1;
+    const produitSel = produits.find(p => p.nom === form.produit);
+    if (produitSel && produitSel.stock != null && qteDemandee > produitSel.stock) {
+      setError(`Stock insuffisant. Disponible : ${produitSel.stock}.`);
+      return;
+    }
     setLoading(true);
     try {
+      const qte = parseInt(form.quantite) || 1;
       await saveVente({
         client_id: clientId,
         produit: form.produit,
-        quantite: parseInt(form.quantite) || 1,
+        quantite: qte,
         prix_achat: parseFloat(form.prix_achat) || 0,
         prix_vente: pv,
         date_vente: today(),
         methode_paiement: form.methode,
         notes: form.notes,
       });
+      await adjustStock(form.produit, -qte);
       onSaved();
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
@@ -129,7 +145,15 @@ const VenteForm = ({ clientId, clientNom, onClose, onSaved }) => {
   return (
     <Modal visible onClose={onClose} title={`Vente — ${clientNom}`}>
       <div style={{ padding: 16 }}>
-        {error && <div style={{ color: C.danger, backgroundColor: C.danger+'15', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+        {error && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setError('')}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 24, maxWidth: 320, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>⛔</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text_primary, marginBottom: 16 }}>{error}</div>
+              <button onClick={() => setError('')} style={{ backgroundColor: C.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
         <PickerSelect label="Produit *" value={form.produit} onChange={onProduitChange} options={['', ...produitOptions]} />
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}><FieldInput label="Prix achat" value={form.prix_achat} onChange={v => setForm(f=>({...f,prix_achat:v}))} type="number" /></div>
