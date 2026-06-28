@@ -87,11 +87,41 @@ export const ParametresPage = ({ user, onLogout }) => {
   const [role, setRole] = useState("");
   const [pays, setPays] = useState("");
 
+  const [factEntreprise, setFactEntreprise] = useState({ nom: '', adresse: '', telephone: '', email: '', logo: '' });
+  const [factSaved, setFactSaved] = useState(false);
+
   useEffect(() => {
     getSetting("entreprise").then(e => { if (e) setEntreprise(e); });
     getSetting("role").then(r => { if (r) setRole(r); });
     getSetting("pays").then(p => { if (p) setPays(p); });
+    Promise.all([
+      getSetting("facture_entreprise_nom"),
+      getSetting("facture_entreprise_adresse"),
+      getSetting("facture_entreprise_telephone"),
+      getSetting("facture_entreprise_email"),
+      getSetting("facture_entreprise_logo"),
+    ]).then(([nom, adresse, telephone, email, logo]) => {
+      setFactEntreprise({ nom: nom || '', adresse: adresse || '', telephone: telephone || '', email: email || '', logo: logo || '' });
+    });
   }, []);
+
+  const saveFactureEntreprise = async () => {
+    await setSetting('facture_entreprise_nom', factEntreprise.nom);
+    await setSetting('facture_entreprise_adresse', factEntreprise.adresse);
+    await setSetting('facture_entreprise_telephone', factEntreprise.telephone);
+    await setSetting('facture_entreprise_email', factEntreprise.email);
+    await setSetting('facture_entreprise_logo', factEntreprise.logo);
+    setFactSaved(true);
+    setTimeout(() => setFactSaved(false), 2000);
+  };
+
+  const onLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setFactEntreprise(f => ({ ...f, logo: reader.result }));
+    reader.readAsDataURL(file);
+  };
   const { googleUser, syncing, authReady, error: gError, connect, disconnect, uploadBackup, downloadBackup, mergeSync } = useGoogle();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -282,6 +312,30 @@ export const ParametresPage = ({ user, onLogout }) => {
             onSync={async () => { const data = await exportAllData(); return await mergeSync(data); }}
           />
 
+        </div>
+      </Section>
+
+      {/* Section Entreprise (facture) */}
+      <Section icon="🏢" label="Nom de l'entreprise (facture)" color={C.accent} open={open==='facture_entreprise'} onToggle={() => toggle('facture_entreprise')}>
+        <div style={{ padding: 16 }}>
+          <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 14 }}>
+            Ces informations apparaitront dans l'en-tete de vos factures. Si elles sont vides, les informations saisies lors de l'inscription seront utilisees a la place.
+          </div>
+          <FieldInput label="Nom de l'entreprise" value={factEntreprise.nom} onChange={v => setFactEntreprise(f=>({...f,nom:v}))} placeholder={entreprise || "Ex: Beauty Plus SARL"} />
+          <FieldInput label="Adresse complete" value={factEntreprise.adresse} onChange={v => setFactEntreprise(f=>({...f,adresse:v}))} placeholder="Ex: 12 Avenue du Commerce, Kinshasa" multiline />
+          <FieldInput label="Telephone" value={factEntreprise.telephone} onChange={v => setFactEntreprise(f=>({...f,telephone:v}))} type="tel" />
+          <FieldInput label="Email" value={factEntreprise.email} onChange={v => setFactEntreprise(f=>({...f,email:v}))} type="email" />
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: C.text_secondary, fontWeight: 600, marginBottom: 6 }}>Logo de l'entreprise</div>
+            {factEntreprise.logo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <img src={factEntreprise.logo} alt="logo" style={{ width: 50, height: 50, objectFit: 'contain', borderRadius: 8, border: `1px solid ${C.card_border}` }} />
+                <button onClick={() => setFactEntreprise(f => ({ ...f, logo: '' }))} style={{ background:'transparent', border:'none', color:C.danger, fontWeight:600, fontSize:12, cursor:'pointer' }}>Retirer le logo</button>
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={onLogoChange} style={{ fontSize: 12 }} />
+          </div>
+          <PrimaryBtn label={factSaved ? 'Enregistre !' : 'Enregistrer'} onClick={saveFactureEntreprise} color={C.accent} />
         </div>
       </Section>
 

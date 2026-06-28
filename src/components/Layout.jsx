@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { id: 'clients',    icon: '👤', label: 'Clients' },
   { id: 'contacts',   icon: '🤝', label: 'Contacts' },
   { id: 'ventes',     icon: '🛍', label: 'Ventes' },
+  { id: 'credits',    icon: '💳', label: 'Crédits' },
   { id: 'produits',   icon: '📦', label: 'Gestion de stock' },
   { id: 'seminaires', icon: '🎓', label: 'Seminaires' },
   { id: 'rdvs',       icon: '📅', label: 'Rendez-vous' },
@@ -20,6 +21,7 @@ const BOTTOM_NAV = [
   { id: 'dashboard',  icon: '⊞', label: 'Accueil' },
   { id: 'clients',    icon: '👤', label: 'Clients' },
   { id: 'ventes',     icon: '🛍', label: 'Ventes' },
+  { id: 'credits',    icon: '💳', label: 'Crédits' },
   { id: 'contacts',   icon: '🤝', label: 'Contacts' },
   { id: 'stock', icon: '📦', label: 'Stock' },
 ];
@@ -29,6 +31,7 @@ export const PAGE_TITLES = {
   clients:    'Clients',
   contacts:   'Contacts',
   ventes:     'Ventes',
+  credits:    'Crédits',
   produits:   'Catalogue produits',
   relances:   'Relances',
   rapports:   'Rapports',

@@ -12,6 +12,7 @@ import { ClientsPage } from './pages/ClientsPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { VentesPage } from './pages/VentesPage';
 import { ProduitsPage } from './pages/ProduitsPage';
+import { CreditsPage } from './pages/CreditsPage';
 import { SeminairesPage } from './pages/SeminairesPage';
 import { RdvsPage } from './pages/RdvsPage';
 import { RelancesPage } from './pages/RelancesPage';
@@ -78,6 +79,7 @@ export default function App() {
       case 'ventes':     return <VentesPage onNavigate={setPage} />;
       case 'produits':   return <ProduitsPage onHideHeader={setHideHeader} />;
       case 'stock':      return <ProduitsPage onHideHeader={setHideHeader} />;
+      case 'credits':    return <CreditsPage onNavigate={setPage} />;
       case 'seminaires': return <SeminairesPage />;
       case 'rdvs':       return <RdvsPage />;
       case 'relances':   return <RelancesPage />;

@@ -1,20 +1,22 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'beautycrm';
-const DB_VERSION = 2;
-const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements'];
+const DB_VERSION = 5;
+const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits'];
 
 let _db = null;
 const getDB = async () => {
   if (_db) return _db;
   _db = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion, newVersion) {
       for (const store of STORES) {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store, { keyPath: '_id' });
         }
       }
     },
+    blocked() { window.location.reload(); },
+    blocking() { _db?.close(); },
   });
   return _db;
 };
@@ -201,6 +203,30 @@ export const deleteVente = async (id) => {
   }
 };
 
+// CREDITS
+export const getCredits = async () => {
+  const all = await getAll('credits');
+  return all.sort((a,b) => (b.date_vente||'').localeCompare(a.date_vente||''));
+};
+export const saveCredit = async (data) => {
+  if (!data._id) data._id = generateId();
+  await putDoc('credits', data);
+};
+export const deleteCredit = (id) => softDelete('credits', id);
+
+export const ajouterVersement = async (creditId, montant) => {
+  const db = await getDB();
+  const credit = await db.get('credits', creditId);
+  if (!credit) return;
+  const versements = credit.versements || [];
+  versements.push({ date: nowISO(), montant });
+  const totalVerse = versements.reduce((s, v) => s + v.montant, 0);
+  const montant_restant = Math.max(0, credit.montant_total - totalVerse);
+  const statut = montant_restant === 0 ? 'paye' : totalVerse > 0 ? 'partiel' : 'non_paye';
+  await db.put('credits', { ...credit, versements, montant_restant, statut, updated_at: nowISO() });
+  return { montant_restant, statut };
+};
+
 // EXPORT / IMPORT
 export const exportAllData = async () => {
   const db = await getDB();
@@ -212,7 +238,7 @@ export const exportAllData = async () => {
 
 export const importAllData = async (data) => {
   const db = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits'];
   for (const key of tables) {
     if (!data[key]) continue;
     const tx = db.transaction(key, 'readwrite');
@@ -231,15 +257,18 @@ export const resetDB = () => { _db = null; };
 
 export const clearAllData = async () => {
   const database = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits'];
   for (const table of tables) {
+    if (!database.objectStoreNames.contains(table)) continue;
     const tx = database.transaction(table, 'readwrite');
     await tx.store.clear();
     await tx.done;
   }
-  const settingsTx = database.transaction('settings', 'readwrite');
-  await settingsTx.store.clear();
-  await settingsTx.done;
+  if (database.objectStoreNames.contains('settings')) {
+    const settingsTx = database.transaction('settings', 'readwrite');
+    await settingsTx.store.clear();
+    await settingsTx.done;
+  }
 };
 
 export const getDeviseSymbolSync = () => {
