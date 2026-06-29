@@ -12,8 +12,7 @@ export const trackUser = async (data) => {
     await fetch(TRACKER_URL, { method: 'POST', mode: 'no-cors', body: form });
   } catch(_) {}
 
-  // Envoi vers IZI360 (nouveau)
-  console.log('IZI360 tracker appelé avec:', data);
+  // Envoi vers IZI360
   try {
     await fetch(IZI360_URL, {
       method: 'POST',
