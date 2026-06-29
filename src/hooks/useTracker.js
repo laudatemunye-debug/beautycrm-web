@@ -1,5 +1,5 @@
 const TRACKER_URL = 'https://script.google.com/macros/s/AKfycbwpS9OyXZ9tl3eSsDUec-t9bM7Jk6kdHjcUM-huILQD395nMIKowDSswzySESMkGOKmQw/exec';
-const IZI360_URL = 'http://localhost:5000/api/beautycrm/register';
+const IZI360_URL = 'https://izi360-backend.vercel.app/api/beautycrm/register';
 const IZI360_SECRET = 'beautycrm_izi360_2026';
 
 export const trackUser = async (data) => {
