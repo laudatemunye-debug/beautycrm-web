@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { id: 'rdvs',       icon: '📅', label: 'Rendez-vous' },
   { id: 'relances',   icon: '🔔', label: 'Relances' },
   { id: 'stock', icon: '📦', label: 'Stock' },
+  { id: 'rapports', icon: '📊', label: 'Rapport' },
   { id: 'parametres', icon: '⚙', label: 'Parametres' },
 ];
 
