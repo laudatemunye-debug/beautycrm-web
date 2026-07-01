@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useCallback } from 'react';
 import { C } from '../theme';
 import { useNetwork } from '../hooks/useNetwork';
 import { useUpdateSW } from '../hooks/useUpdateSW';
@@ -44,6 +43,19 @@ export const PAGE_TITLES = {
 
 const Drawer = ({ open, onClose, onNavigate, active, user }) => {
   const drawerRef = useRef(null);
+  const [showParrain, setShowParrain] = useState(false);
+  const [nbFilleuls, setNbFilleuls] = useState(0);
+  const code = localStorage.getItem('beautycrm_referral_code') || '';
+  const link = window.location.origin + (code ? '?ref=' + code : '');
+
+  useEffect(() => {
+    if (code) {
+      fetch('https://izi360-backend.vercel.app/api/beautycrm/parrainage/count?code=' + code)
+        .then(r => r.json())
+        .then(d => setNbFilleuls(d.count || 0))
+        .catch(() => {})
+    }
+  }, [code]);
 
   useEffect(() => {
     if (drawerRef.current) {
@@ -166,7 +178,7 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
                 {/* Boutons */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <button onClick={() => {
-                    const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
+                    const msg = `👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
 
 💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !
 
@@ -175,13 +187,13 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
 ✅ Agenda & rendez-vous
 ✅ Rapports automatiques
 
-📲 Installe-la ici : " + link
+📲 Installe-la ici : ${link}`
                     window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank')
                   }} style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: '14px', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
                     Partager sur WhatsApp
                   </button>
                   <button onClick={() => {
-                    const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
+                    const msg = `👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
 
 💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !
 
@@ -190,7 +202,7 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
 ✅ Agenda & rendez-vous
 ✅ Rapports automatiques
 
-📲 Installe-la ici : " + link
+📲 Installe-la ici : ${link}`
                     navigator.clipboard.writeText(msg).then(() => alert('Message copié !'))
                   }} style={{ backgroundColor: '#252B48', color: '#fff', border: '1px solid #2A3050', borderRadius: 12, padding: '14px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                     Copier le message
