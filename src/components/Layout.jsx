@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { C } from '../theme';
 import { useNetwork } from '../hooks/useNetwork';
 import { useUpdateSW } from '../hooks/useUpdateSW';
@@ -129,35 +130,75 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
 
         <div style={{ padding: '0 20px 16px' }}>
           <div style={{ height: 1, backgroundColor: '#2A3050', marginBottom: 16 }} />
-          <div
-            onClick={() => {
-              const code = localStorage.getItem('beautycrm_referral_code') || ''
-              const link = window.location.origin + (code ? '?ref=' + code : '')
-              const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?\n\n💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !\n\n✅ Gestion clients & contacts\n✅ Suivi des ventes & marges\n✅ Agenda & rendez-vous\n✅ Rapports automatiques\n\n📲 Installe-la ici : " + link
-              if (navigator.share) {
-                navigator.share({ title: 'BeautyCRM', text: msg, url: link })
-              } else {
-                navigator.clipboard.writeText(msg).then(() => alert('Lien copié ! Colle-le sur WhatsApp.'))
-              }
-            }}
-            style={{
-              backgroundColor: '#252B48',
-              border: '1px solid #2A3050',
-              borderRadius: 12,
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              cursor: 'pointer',
-              marginBottom: 12,
-            }}
-          >
+          <div onClick={() => setShowParrain(true)} style={{ backgroundColor: '#252B48', border: '1px solid #2A3050', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
             <span style={{ fontSize: 20 }}>📲</span>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>Recommander l'app</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Partager avec tes contacts MLM</div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>{nbFilleuls} personne{nbFilleuls > 1 ? 's' : ''} invitée{nbFilleuls > 1 ? 's' : ''}</div>
             </div>
+            {nbFilleuls > 0 && <span style={{ backgroundColor: '#1D9E75', color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{nbFilleuls}</span>}
           </div>
+
+          {/* Modal Parrainage */}
+          {showParrain && (
+            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div style={{ backgroundColor: '#1A1D27', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxWidth: 480 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>📲 Recommander BeautyCRM</div>
+                  <button onClick={() => setShowParrain(false)} style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 22, cursor: 'pointer' }}>×</button>
+                </div>
+
+                {/* Stats */}
+                <div style={{ backgroundColor: '#252B48', borderRadius: 12, padding: '16px', marginBottom: 16, textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: '#1D9E75' }}>{nbFilleuls}</div>
+                  <div style={{ color: '#9CA3AF', fontSize: 13 }}>personne{nbFilleuls > 1 ? 's' : ''} invitée{nbFilleuls > 1 ? 's' : ''} grâce à toi</div>
+                </div>
+
+                {/* Code */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ color: '#9CA3AF', fontSize: 11, fontWeight: 600, marginBottom: 6 }}>TON CODE DE PARRAINAGE</div>
+                  <div style={{ backgroundColor: '#252B48', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#1D9E75', fontFamily: 'monospace', fontWeight: 700, fontSize: 18 }}>{code || '—'}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(link); alert('Lien copié !') }} style={{ backgroundColor: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Copier lien</button>
+                  </div>
+                </div>
+
+                {/* Boutons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => {
+                    const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
+
+💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !
+
+✅ Gestion clients & contacts
+✅ Suivi des ventes & marges
+✅ Agenda & rendez-vous
+✅ Rapports automatiques
+
+📲 Installe-la ici : " + link
+                    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank')
+                  }} style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: '14px', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+                    Partager sur WhatsApp
+                  </button>
+                  <button onClick={() => {
+                    const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?
+
+💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !
+
+✅ Gestion clients & contacts
+✅ Suivi des ventes & marges
+✅ Agenda & rendez-vous
+✅ Rapports automatiques
+
+📲 Installe-la ici : " + link
+                    navigator.clipboard.writeText(msg).then(() => alert('Message copié !'))
+                  }} style={{ backgroundColor: '#252B48', color: '#fff', border: '1px solid #2A3050', borderRadius: 12, padding: '14px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                    Copier le message
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{ color: '#A0A8D0', fontSize: 11, textAlign: 'center' }}>
             V2.1 © 2026 IZIsoft
           </div>
