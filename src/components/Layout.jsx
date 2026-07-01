@@ -131,11 +131,13 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
           <div style={{ height: 1, backgroundColor: '#2A3050', marginBottom: 16 }} />
           <div
             onClick={() => {
-              const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?\n\n💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !\n\n✅ Gestion clients & contacts\n✅ Suivi des ventes & marges\n✅ Agenda & rendez-vous\n✅ Rapports automatiques\n\n📲 Installe-la ici : ' + window.location.origin + '";
+              const code = localStorage.getItem('beautycrm_referral_code') || ''
+              const link = window.location.origin + (code ? '?ref=' + code : '')
+              const msg = "👋 Tu cherches une app pour gérer tes contacts, clients et ventes dans le MLM ?\n\n💄 *BeautyCRM* par IZIsoft — 100% gratuit, fonctionne sans internet !\n\n✅ Gestion clients & contacts\n✅ Suivi des ventes & marges\n✅ Agenda & rendez-vous\n✅ Rapports automatiques\n\n📲 Installe-la ici : " + link
               if (navigator.share) {
-                navigator.share({ title: 'BeautyCRM', text: msg, url: '' + window.location.origin + '' });
+                navigator.share({ title: 'BeautyCRM', text: msg, url: link })
               } else {
-                navigator.clipboard.writeText(msg).then(() => alert('Message copié ! Colle-le sur WhatsApp.'));
+                navigator.clipboard.writeText(msg).then(() => alert('Lien copié ! Colle-le sur WhatsApp.'))
               }
             }}
             style={{

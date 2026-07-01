@@ -20,9 +20,13 @@ export const trackUser = async (data) => {
     await fetch(TRACKER_URL, { method: 'POST', mode: 'no-cors', body: form });
   } catch(_) {}
 
+  // Récupérer le code de parrainage depuis l'URL
+  const urlParams = new URLSearchParams(window.location.search)
+  const referred_by = urlParams.get('ref') || ''
+
   // Envoi vers IZI360
   try {
-    await fetch(IZI360_URL, {
+    const r = await fetch(IZI360_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -37,8 +41,14 @@ export const trackUser = async (data) => {
         devise: data.devise || data.currency || '',
         version: '2.1',
         plateforme: 'web',
-        ip_address
+        ip_address,
+        referred_by
       })
-    });
+    })
+    const d = await r.json()
+    // Sauvegarder le code de parrainage de l'utilisateur
+    if (d.user && d.user.referral_code) {
+      localStorage.setItem('beautycrm_referral_code', d.user.referral_code)
+    }
   } catch(_) {}
 };
