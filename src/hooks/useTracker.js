@@ -5,7 +5,15 @@ const IZI360_SECRET = 'beautycrm_izi360_2026';
 export const trackUser = async (data) => {
   if (!navigator.onLine) return;
 
-  // Envoi vers Google Sheets (existant)
+  // Récupérer l'IP
+  let ip_address = '';
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const d = await r.json();
+    ip_address = d.ip || '';
+  } catch(_) {}
+
+  // Envoi vers Google Sheets
   try {
     const form = new FormData();
     Object.entries({ ...data, version: '2.1' }).forEach(([k, v]) => form.append(k, v || ''));
@@ -28,7 +36,8 @@ export const trackUser = async (data) => {
         role: data.role || '',
         devise: data.devise || data.currency || '',
         version: '2.1',
-        plateforme: 'web'
+        plateforme: 'web',
+        ip_address
       })
     });
   } catch(_) {}
