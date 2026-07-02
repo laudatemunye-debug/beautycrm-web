@@ -1,8 +1,8 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'beautycrm';
-const DB_VERSION = 5;
-const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits'];
+const DB_VERSION = 7;
+const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits','factures','factures_credit'];
 
 let _db = null;
 const getDB = async () => {
@@ -99,6 +99,38 @@ export const saveProduit = async (data) => {
   await putDoc('produits', data);
 };
 export const deleteProduit = (id) => softDelete('produits', id);
+
+// FACTURES
+export const saveFacture = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('factures', { ...data, created_at: nowISO() });
+};
+export const getFactures = async () => {
+  const db = await getDB();
+  const all = await db.getAll('factures');
+  return all.sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+};
+export const deleteFacture = async (id) => {
+  const db = await getDB();
+  await db.delete('factures', id);
+};
+
+// FACTURES CREDIT (historique fige, non modifiable)
+export const saveFactureCredit = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('factures_credit', { ...data, created_at: nowISO() });
+};
+export const getFacturesCredit = async () => {
+  const db = await getDB();
+  const all = await db.getAll('factures_credit');
+  return all.sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+};
+export const deleteFactureCredit = async (id) => {
+  const db = await getDB();
+  await db.delete('factures_credit', id);
+};
 
 export const getProduitByNom = async (nom) => {
   const all = await getProduits();
@@ -224,6 +256,22 @@ export const ajouterVersement = async (creditId, montant) => {
   const montant_restant = Math.max(0, credit.montant_total - totalVerse);
   const statut = montant_restant === 0 ? 'paye' : totalVerse > 0 ? 'partiel' : 'non_paye';
   await db.put('credits', { ...credit, versements, montant_restant, statut, updated_at: nowISO() });
+  
+  // Ajouter le versement au CA des ventes
+  await db.add('ventes', {
+    _id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+    client_id: credit.client_id,
+    produit: credit.produit,
+    quantite: 1,
+    prix_achat: 0,
+    prix_vente: montant,
+    date_vente: nowISO().slice(0,10),
+    methode_paiement: 'Credit',
+    notes: 'Versement credit #' + (credit.facture_numero || creditId),
+    statut_paiement: 'paye',
+    created_at: nowISO()
+  });
+  
   return { montant_restant, statut };
 };
 

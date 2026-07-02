@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { C } from '../theme';
-import { getClients, getVentes, getProspects, getRdvs, getSeminaires, today } from '../db/index';
+import { getClients, getVentes, getProspects, getRdvs, getSeminaires, getCredits, today } from '../db/index';
 import { KpiCard, Card, SectionTitle, fmtMoney, fmtDate, Badge, getDeviseSymbol } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
 
@@ -19,13 +19,18 @@ export const DashboardPage = ({ onNavigate }) => {
 
   useEffect(() => {
     const load = async () => {
-      const [clients, ventes, prospects, rdvsAll, seminaires] = await Promise.all([
-        getClients(), getVentes(), getProspects(), getRdvs(), getSeminaires(),
+      const [clients, ventes, prospects, rdvsAll, seminaires, credits] = await Promise.all([
+        getClients(), getVentes(), getProspects(), getRdvs(), getSeminaires(), getCredits(),
       ]);
       const t = today();
       const mois = t.slice(0, 7);
       const ventesMois = ventes.filter(v => v.date_vente && v.date_vente.startsWith(mois));
-      const ca = ventesMois.reduce((s, v) => s + (v.prix_vente * v.quantite), 0);
+      const ca_ventes = ventesMois.reduce((s, v) => s + (v.prix_vente * v.quantite), 0);
+      // Note : l'encaisse des credits (avance initiale + versements) est deja
+      // repliquee automatiquement comme vente (methode_paiement: 'Credit') dans
+      // ajouterVersement() et CreditForm.save(). Ne pas re-additionner ici,
+      // sinon chaque versement est compte deux fois.
+      const ca = ca_ventes;
       const marge = ventesMois.reduce((s, v) => s + ((v.prix_vente - v.prix_achat) * v.quantite), 0);
       const rdvsAujourdhui = rdvsAll.filter(r => r.date_rdv === t && r.statut !== 'annule');
       const rdvsUpcoming = rdvsAll

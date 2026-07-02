@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C, CANAUX } from '../theme';
-import { getVentes, getClients, saveClient, saveVente, getProduits, adjustStock, today, deleteVente, getSetting, setSetting } from '../db/index';
+import { getVentes, getClients, saveClient, saveVente, getProduits, adjustStock, today, deleteVente, getSetting, setSetting, saveFacture, getFactures, deleteFacture } from '../db/index';
 import jsPDF from 'jspdf';
 import { Card, SearchBar, SectionTitle, PrimaryBtn, GhostBtn, FieldInput, PickerSelect, Modal, FormFooter, Badge, fmtMoney, fmtDate } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
@@ -428,6 +428,293 @@ const VenteEditForm = ({ venteEdit, onClose, onSaved, onNavigate }) => {
   );
 };
 
+const VentureFactureEditForm = ({ ventesGroupe, onClose, onSaved, onNavigate }) => {
+  const [clients, setClients] = useState([]);
+  const [produits, setProduits] = useState([]);
+  const [clientNomSelected, setClientNomSelected] = useState("");
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({ nom: '', telephone: '', email: '', canal: '', ville: '', notes: '' });
+  const [newClientError, setNewClientError] = useState('');
+  const [creatingClient, setCreatingClient] = useState(false);
+
+  const [items, setItems] = useState(() => ventesGroupe.map(v => ({
+    _key: v._id,
+    _id: v._id,
+    produit: v.produit,
+    prix_achat: v.prix_achat,
+    prix_vente: v.prix_vente,
+    quantite: v.quantite,
+  })));
+  const [itemForm, setItemForm] = useState({ produit: '', prix_achat: '', prix_vente: '', quantite: '1' });
+  const [methode, setMethode] = useState(ventesGroupe[0].methode_paiement || 'Cash');
+  const [dateEcheance, setDateEcheance] = useState(ventesGroupe[0].date_echeance || '');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    getClients().then(cs => {
+      setClients(cs);
+      const cl = cs.find(c => c._id === ventesGroupe[0].client_id);
+      if (cl) setClientNomSelected(cl.nom);
+    });
+    getProduits().then(setProduits);
+  }, []);
+
+  const onClientChange = (nom) => {
+    if (nom === '+ Nouveau client') {
+      setShowNewClient(true);
+      setNewClientForm({ nom: '', telephone: '', email: '', canal: CANAUX[0], ville: '', notes: '' });
+      setNewClientError('');
+      return;
+    }
+    setClientNomSelected(nom);
+    setShowNewClient(false);
+  };
+
+  const createClientInline = async () => {
+    setNewClientError('');
+    if (!newClientForm.nom.trim()) { setNewClientError('Le nom est obligatoire.'); return; }
+    setCreatingClient(true);
+    try {
+      const dupNom = clients.find(c => c.nom.toLowerCase() === newClientForm.nom.toLowerCase().trim());
+      if (dupNom) { setNewClientError('Un client avec ce nom existe deja.'); setCreatingClient(false); return; }
+      await saveClient({ ...newClientForm, nom: newClientForm.nom.trim(), telephone: newClientForm.telephone.trim() });
+      const updated = await getClients();
+      setClients(updated);
+      setClientNomSelected(newClientForm.nom.trim());
+      setShowNewClient(false);
+    } catch(e) { setNewClientError(e.message); }
+    finally { setCreatingClient(false); }
+  };
+
+  const onItemProduitChange = (nom) => {
+    const p = produits.find(x => x.nom === nom);
+    setItemForm(f => ({
+      ...f, produit: nom,
+      prix_achat: p?.prix_achat ? String(p.prix_achat) : f.prix_achat,
+      prix_vente: p?.prix_vente ? String(p.prix_vente) : f.prix_vente,
+    }));
+  };
+
+  const stockDispoPourProduit = (nom) => {
+    const p = produits.find(x => x.nom === nom);
+    if (!p || p.stock == null) return Infinity;
+    const originalQte = ventesGroupe.filter(v => v.produit === nom).reduce((s,v)=>s+v.quantite,0);
+    const allocQte = items.filter(it => it.produit === nom).reduce((s,it)=>s+it.quantite,0);
+    return p.stock + originalQte - allocQte;
+  };
+
+  const ajouterItem = () => {
+    setError('');
+    if (!itemForm.produit.trim()) { setError('Choisissez un produit.'); return; }
+    const pv = parseFloat(itemForm.prix_vente);
+    if (!pv || pv <= 0) { setError('Prix de vente invalide.'); return; }
+    const qte = parseInt(itemForm.quantite) || 1;
+    const dispo = stockDispoPourProduit(itemForm.produit);
+    if (qte > dispo) { setError(`Stock insuffisant pour ${itemForm.produit}. Disponible : ${dispo}.`); return; }
+    setItems(list => {
+      const existant = list.find(it => it.produit === itemForm.produit);
+      if (existant) {
+        return list.map(it => it.produit === itemForm.produit
+          ? { ...it, quantite: it.quantite + qte, prix_vente: pv, prix_achat: parseFloat(itemForm.prix_achat) || it.prix_achat }
+          : it);
+      }
+      return [...list, {
+        _key: 'new_' + Date.now() + Math.random(),
+        _id: null,
+        produit: itemForm.produit,
+        prix_achat: parseFloat(itemForm.prix_achat) || 0,
+        prix_vente: pv,
+        quantite: qte,
+      }];
+    });
+    setItemForm({ produit: '', prix_achat: '', prix_vente: '', quantite: '1' });
+  };
+
+  const retirerItem = (key) => setItems(list => list.filter(it => it._key !== key));
+
+  const modifierItem = (key, champ, valeur) => {
+    setItems(list => list.map(it => {
+      if (it._key !== key) return it;
+      if (champ === 'quantite') return { ...it, quantite: Math.max(1, parseInt(valeur) || 1) };
+      if (champ === 'prix_vente') return { ...it, prix_vente: parseFloat(valeur) || 0 };
+      if (champ === 'prix_achat') return { ...it, prix_achat: parseFloat(valeur) || 0 };
+      return it;
+    }));
+  };
+
+  const totalFacture = items.reduce((s, it) => s + it.prix_vente * it.quantite, 0);
+
+  const validerStock = () => {
+    const produitsAffectes = new Set([...ventesGroupe.map(v=>v.produit), ...items.map(it=>it.produit)]);
+    for (const nom of produitsAffectes) {
+      const p = produits.find(x => x.nom === nom);
+      if (!p || p.stock == null) continue;
+      const originalQte = ventesGroupe.filter(v => v.produit === nom).reduce((s,v)=>s+v.quantite,0);
+      const nouvelleQte = items.filter(it => it.produit === nom).reduce((s,it)=>s+it.quantite,0);
+      if (p.stock + originalQte - nouvelleQte < 0) {
+        return `Stock insuffisant pour ${nom}. Disponible : ${p.stock + originalQte}.`;
+      }
+    }
+    return null;
+  };
+
+  const handleDeleteFacture = async () => {
+    setLoading(true);
+    try {
+      for (const v of ventesGroupe) {
+        await deleteVente(v._id);
+        await adjustStock(v.produit, v.quantite);
+      }
+      onSaved();
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const save = async () => {
+    setError('');
+    const clientFound = clients.find(c => c.nom === clientNomSelected);
+    if (!clientFound) { setError("Choisissez un client."); return; }
+    if (items.length === 0) { setError('Ajoutez au moins un produit.'); return; }
+    const stockErr = validerStock();
+    if (stockErr) { setError(stockErr); return; }
+    setLoading(true);
+    try {
+      const estCredit = methode === 'Credit';
+      let numero = ventesGroupe[0].facture_numero;
+      if (!numero && items.length > 1) {
+        numero = await getNextNumeroFacture();
+      }
+      const dateV = ventesGroupe[0].date_vente;
+
+      for (const it of items) {
+        const original = it._id ? ventesGroupe.find(v => v._id === it._id) : null;
+        const ancienneQte = original ? original.quantite : 0;
+        const payload = {
+          client_id: clientFound._id,
+          produit: it.produit,
+          quantite: it.quantite,
+          prix_achat: it.prix_achat,
+          prix_vente: it.prix_vente,
+          date_vente: dateV,
+          methode_paiement: methode,
+          notes: '',
+          statut_paiement: estCredit ? 'credit' : 'paye',
+          date_echeance: estCredit && dateEcheance ? dateEcheance : null,
+          facture_numero: numero || null,
+        };
+        if (it._id) payload._id = it._id;
+        await saveVente(payload);
+        const diff = ancienneQte - it.quantite;
+        if (diff !== 0) await adjustStock(it.produit, diff);
+      }
+
+      const idsConserves = new Set(items.filter(it => it._id).map(it => it._id));
+      for (const v of ventesGroupe) {
+        if (!idsConserves.has(v._id)) {
+          await deleteVente(v._id);
+          await adjustStock(v.produit, v.quantite);
+        }
+      }
+
+      if (numero) {
+        const facturesExistantes = await getFactures();
+        const factureExistante = facturesExistantes.find(f => f.numero === numero);
+        const ent = await buildFactureEntete();
+        const fd = {
+          _id: factureExistante?._id,
+          numero,
+          clientNom: clientFound.nom,
+          clientTel: clientFound.telephone || '',
+          items: items.map(it => ({ produit: it.produit, prix_achat: it.prix_achat, prix_vente: it.prix_vente, quantite: it.quantite })),
+          total: totalFacture,
+          methode,
+          date: dateV,
+          entete: ent,
+        };
+        await saveFacture(fd);
+      }
+
+      onSaved();
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal visible onClose={onClose} title="Modifier la facture">
+      <div style={{ padding: 16 }}>
+        {error && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setError('')}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 24, maxWidth: 320, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>⛔</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text_primary, marginBottom: 16 }}>{error}</div>
+              <button onClick={() => setError('')} style={{ backgroundColor: C.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
+        <ClientPicker
+          clients={clients} clientNomSelected={clientNomSelected} onClientChange={onClientChange}
+          showNewClient={showNewClient} newClientForm={newClientForm} setNewClientForm={setNewClientForm}
+          newClientError={newClientError} creatingClient={creatingClient} createClientInline={createClientInline}
+          setShowNewClient={setShowNewClient}
+        />
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.text_secondary, marginBottom: 8, marginTop: 6 }}>Produits de la facture</div>
+        {items.map(it => (
+          <div key={it._key} style={{ border: '1px solid '+C.card_border, borderRadius: 10, padding: 10, marginBottom: 8 }}>
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary }}>{it.produit}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ width: 'calc(50% - 45px)' }}><FieldInput label="Prix vente" value={String(it.prix_vente)} onChange={v => modifierItem(it._key, 'prix_vente', v)} type="number" /></div>
+              <div style={{ width: 'calc(50% - 45px)' }}><FieldInput label="Qte" value={String(it.quantite)} onChange={v => modifierItem(it._key, 'quantite', v)} type="number" /></div>
+              <button onClick={() => retirerItem(it._key)} style={{ width: 74, height: 44, marginTop: 21, padding: 0, borderRadius: 8, border: '1px solid '+C.danger, background: 'transparent', color: C.danger, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Retirer</button>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ backgroundColor: C.accent+'0d', border: `1px dashed ${C.accent}60`, borderRadius: 10, padding: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8 }}>Ajouter un produit</div>
+          <PickerSelect label="Produit" value={itemForm.produit} onChange={onItemProduitChange} options={produits.length === 0 ? ["Aucun produit enregistre"] : ['', ...produits.map(p => p.nom)]} />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}><FieldInput label="Prix achat" value={itemForm.prix_achat} onChange={v => setItemForm(f=>({...f,prix_achat:v}))} type="number" /></div>
+            <div style={{ flex: 1 }}><FieldInput label="Prix vente" value={itemForm.prix_vente} onChange={v => setItemForm(f=>({...f,prix_vente:v}))} type="number" /></div>
+            <div style={{ width: 70 }}><FieldInput label="Qte" value={itemForm.quantite} onChange={v => setItemForm(f=>({...f,quantite:v}))} type="number" /></div>
+          </div>
+          <button onClick={ajouterItem} style={{ width: '100%', padding: 10, borderRadius: 8, border: 'none', background: C.accent, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ Ajouter a la facture</button>
+        </div>
+
+        <PickerSelect label="Paiement" value={methode} onChange={setMethode} options={['Cash','Mobile Money','Virement','Credit','Autre']} />
+        {methode === 'Credit' && (
+          <FieldInput label="Date d'echeance (optionnel)" value={dateEcheance} onChange={setDateEcheance} type="date" />
+        )}
+
+        <div style={{ backgroundColor: C.success+'15', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.text_secondary }}>Total facture</div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.success }}>{fmtMoney(totalFacture)}</div>
+        </div>
+      </div>
+      {confirmDelete ? (
+        <div style={{ padding: 16, borderTop: '1px solid '+C.card_border }}>
+          <div style={{ fontSize: 13, color: C.danger, marginBottom: 10, fontWeight: 600 }}>Supprimer toute la facture ?</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid '+C.card_border, background: '#fff', fontWeight: 700, fontSize: 13 }}>Annuler</button>
+            <button onClick={handleDeleteFacture} disabled={loading} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: C.danger, color: '#fff', fontWeight: 700, fontSize: 13 }}>{loading ? '...' : 'Confirmer'}</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <FormFooter onSave={save} onClose={onClose} loading={loading} saveColor={C.success} saveLabel="Enregistrer" />
+          <div style={{ padding: '0 16px 16px' }}>
+            <button onClick={() => setConfirmDelete(true)} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid '+C.danger, background: 'transparent', color: C.danger, fontWeight: 700, fontSize: 13 }}>Supprimer toute la facture</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+};
+
 // ----- MODE NOUVELLE VENTE (panier multi-produits) -----
 const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) => {
   const [clients, setClients] = useState([]);
@@ -541,6 +828,7 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
     try {
       const dateV = today();
       const estCredit = modeCredit || methode === 'Credit';
+      const numero = await getNextNumeroFacture();
       for (const item of panier) {
         await saveVente({
           client_id: clientFound._id,
@@ -553,13 +841,13 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
           notes: '',
           statut_paiement: estCredit ? 'credit' : 'paye',
           date_echeance: estCredit && dateEcheance ? dateEcheance : null,
+          facture_numero: numero,
         });
         await adjustStock(item.produit, -item.quantite);
       }
       const ent = await buildFactureEntete();
       setFactureEntete(ent);
-      const numero = await getNextNumeroFacture();
-      setFactureData({
+      const fd = {
         numero,
         clientNom: clientFound.nom,
         clientTel: clientFound.telephone || '',
@@ -567,7 +855,10 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
         total: totalPanier,
         methode,
         date: dateV,
-      });
+        entete: ent,
+      };
+      await saveFacture(fd);
+      setFactureData(fd);
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -718,6 +1009,97 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
   );
 };
 
+const FacturesModal = ({ onClose }) => {
+  const [factures, setFactures] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [factureVue, setFactureVue] = useState(null);
+  const [search, setSearch] = useState('');
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin, setDateFin] = useState('');
+
+  useEffect(() => {
+    getFactures().then(f => { setFactures(f); setLoading(false); });
+  }, []);
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer cette facture ?')) return;
+    await deleteFacture(id);
+    setFactures(f => f.filter(x => x._id !== id));
+  };
+
+  const reimprimer = async (f) => {
+    const doc = await buildFacturePdf({ ...f, entete: f.entete });
+    doc.save(`${f.numero}-${f.clientNom}.pdf`);
+  };
+
+  if (factureVue) {
+    return (
+      <FactureScreen
+        factureData={factureVue}
+        factureEntete={factureVue.entete || {}}
+        onClose={() => setFactureVue(null)}
+      />
+    );
+  }
+
+  return (
+    <Modal visible onClose={onClose} title="Historique factures">
+      <div style={{ padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f5f6fa', borderRadius: 10, padding: '8px 12px', border: `1px solid ${C.card_border}`, marginBottom: 10 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Chercher client ou numero..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13, width: '100%' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.text_secondary, marginBottom: 4 }}>Du</div>
+            <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.card_border}`, borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.text_secondary, marginBottom: 4 }}>Au</div>
+            <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.card_border}`, borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
+          </div>
+          {(dateDebut || dateFin) && (
+            <button onClick={() => { setDateDebut(''); setDateFin(''); }} style={{ background: 'transparent', border: 'none', color: C.danger, fontWeight: 700, fontSize: 12, cursor: 'pointer', marginTop: 14 }}>Effacer</button>
+          )}
+        </div>
+        {loading
+          ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Chargement...</div>
+          : factures.length === 0
+            ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Aucune facture.</div>
+            : [...factures]
+              .filter(f => {
+                const matchSearch = f.clientNom?.toLowerCase().includes(search.toLowerCase()) || f.numero?.toLowerCase().includes(search.toLowerCase());
+                const matchDebut = !dateDebut || (f.date||'') >= dateDebut;
+                const matchFin = !dateFin || (f.date||'') <= dateFin;
+                return matchSearch && matchDebut && matchFin;
+              })
+              .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+              .map(f => (
+              <div key={f._id} style={{ marginBottom: 10 }}>
+                <Card>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 4 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary }}>{f.numero}</div>
+                      <div style={{ fontSize: 11, color: C.text_secondary, marginTop: 2 }}>{f.clientNom} · {fmtDate(f.date)}</div>
+                      <div style={{ fontSize: 11, color: C.text_secondary }}>{f.items?.length || 1} produit(s)</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: C.success }}>{fmtMoney(f.total)}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                        <button onClick={() => setFactureVue(f)} style={{ backgroundColor: C.accent, border: 'none', borderRadius: 7, padding: '4px 8px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>Voir</button>
+                        <button onClick={() => reimprimer(f)} style={{ backgroundColor: C.success, border: 'none', borderRadius: 7, padding: '4px 8px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>PDF</button>
+                        <button onClick={() => supprimer(f._id)} style={{ backgroundColor: C.danger, border: 'none', borderRadius: 7, padding: '4px 8px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>X</button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            ))
+        }
+      </div>
+    </Modal>
+  );
+};
+
 export const VentesPage = ({ onNavigate }) => {
   const [ventes, setVentes] = useState([]);
   const [clients, setClients] = useState([]);
@@ -726,7 +1108,8 @@ export const VentesPage = ({ onNavigate }) => {
   const [showForm, setShowForm] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [showCredit, setShowCredit] = useState(false);
-  const [editingVente, setEditingVente] = useState(null);
+  const [showFactures, setShowFactures] = useState(false);
+  const [editingGroupe, setEditingGroupe] = useState(null);
   const devise = useDevise();
 
   const load = useCallback(async () => {
@@ -748,6 +1131,19 @@ export const VentesPage = ({ onNavigate }) => {
 
   const totalCA = filtered.reduce((s,v) => s + v.prix_vente * v.quantite, 0);
   const totalMarge = filtered.reduce((s,v) => s + (v.prix_vente - v.prix_achat) * v.quantite, 0);
+
+  // Grouper les ventes par facture_numero
+  const groupes = [];
+  const dejaTrait = new Set();
+  for (const v of filtered) {
+    if (v.facture_numero && !dejaTrait.has(v.facture_numero)) {
+      const groupe = filtered.filter(x => x.facture_numero === v.facture_numero);
+      groupes.push({ key: v.facture_numero, ventes: groupe, type: 'groupe' });
+      groupe.forEach(x => dejaTrait.add(x.facture_numero));
+    } else if (!v.facture_numero) {
+      groupes.push({ key: v._id, ventes: [v], type: 'simple' });
+    }
+  }
 
   const exportCSV = () => {
     const header = 'Date,Client,Produit,Quantite,Prix achat,Prix vente,Marge,Paiement\n';
@@ -778,8 +1174,13 @@ export const VentesPage = ({ onNavigate }) => {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <PrimaryBtn label="Nouvelle vente" onClick={() => { setEditingVente(null); setFormKey(k=>k+1); setShowForm(true); }} style={{ flex: 1 }} />
-        <button onClick={() => { setEditingVente(null); setShowCredit(true); }} style={{
+        <PrimaryBtn label="Nouvelle vente" onClick={() => { setEditingGroupe(null); setFormKey(k=>k+1); setShowForm(true); }} style={{ flex: 1 }} />
+        <button onClick={() => setShowFactures(true)} style={{
+          backgroundColor: C.accent+'15', border: `1.5px solid ${C.accent}60`,
+          borderRadius: 12, padding: '13px 14px', color: C.accent,
+          fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+        }}>Factures</button>
+        <button onClick={() => { setEditingGroupe(null); setShowCredit(true); }} style={{
           backgroundColor: C.danger+'15', border: `1.5px solid ${C.danger}60`,
           borderRadius: 12, padding: '13px 14px', color: C.danger,
           fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
@@ -798,26 +1199,35 @@ export const VentesPage = ({ onNavigate }) => {
         ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Chargement...</div>
         : filtered.length === 0
           ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary, fontSize: 13 }}>Aucune vente enregistree.</div>
-          : filtered.map(v => (
-            <div key={v._id} style={{ marginBottom: 10 }} onClick={() => setEditingVente(v)}>
-              <Card>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 4, cursor: 'pointer' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: C.text_primary }}>{getClientNom(v.client_id)}</div>
-                    <div style={{ fontSize: 11, color: C.text_secondary, marginTop: 2 }}>{v.produit} ×{v.quantite}</div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
-                      <Badge label={v.methode_paiement} color={C.accent} />
-                      <span style={{ fontSize: 11, color: C.text_secondary }}>{fmtDate(v.date_vente)}</span>
+          : groupes.map(g => {
+              const v0 = g.ventes[0];
+              const totalG = g.ventes.reduce((s,v) => s + v.prix_vente * v.quantite, 0);
+              const margeG = g.ventes.reduce((s,v) => s + (v.prix_vente - v.prix_achat) * v.quantite, 0);
+              return (
+                <div key={g.key} style={{ marginBottom: 10 }} onClick={() => setEditingGroupe(g.ventes)}>
+                  <Card>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 4, cursor: 'pointer' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.text_primary }}>{getClientNom(v0.client_id)}</div>
+                        {g.type === 'groupe'
+                          ? g.ventes.map((v,i) => <div key={i} style={{ fontSize: 11, color: C.text_secondary, marginTop: i===0?2:1 }}>{v.produit} ×{v.quantite}</div>)
+                          : <div style={{ fontSize: 11, color: C.text_secondary, marginTop: 2 }}>{v0.produit} ×{v0.quantite}</div>
+                        }
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                          <Badge label={v0.methode_paiement} color={C.accent} />
+                          <span style={{ fontSize: 11, color: C.text_secondary }}>{fmtDate(v0.date_vente)}</span>
+                          {g.type === 'groupe' && <span style={{ fontSize: 10, color: C.accent, fontWeight: 600 }}>{g.key}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.success }}>{fmtMoney(totalG)}</div>
+                        <div style={{ fontSize: 11, color: C.success }}>+{fmtMoney(margeG)}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: C.success }}>{fmtMoney(v.prix_vente * v.quantite)}</div>
-                    <div style={{ fontSize: 11, color: C.success }}>+{fmtMoney((v.prix_vente - v.prix_achat) * v.quantite)}</div>
-                  </div>
+                  </Card>
                 </div>
-              </Card>
-            </div>
-          ))
+              );
+            })
       }
 
       {showForm && (
@@ -834,15 +1244,16 @@ export const VentesPage = ({ onNavigate }) => {
         />
       )}
 
-      {editingVente && (
-        <VenteEditForm
-          key={editingVente._id}
-          venteEdit={editingVente}
-          onClose={() => setEditingVente(null)}
-          onSaved={() => { setEditingVente(null); load(); }}
+      {editingGroupe && (
+        <VentureFactureEditForm
+          key={editingGroupe.map(v=>v._id).join('-')}
+          ventesGroupe={editingGroupe}
+          onClose={() => setEditingGroupe(null)}
+          onSaved={() => { setEditingGroupe(null); load(); }}
           onNavigate={onNavigate}
         />
       )}
+      {showFactures && <FacturesModal onClose={() => setShowFactures(false)} />}
     </div>
   );
 };
