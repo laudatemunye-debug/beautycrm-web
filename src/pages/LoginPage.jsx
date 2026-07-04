@@ -140,7 +140,8 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       await setSetting('ville', ville);
       await setSetting('telephone', indicatif + telephone);
       await setSetting('email', email);
-      await trackUser({ nom: setupNom.trim(), email, telephone: indicatif+telephone, pays, ville, entreprise, role, devise });
+      const synced = await trackUser({ nom: setupNom.trim(), email, telephone: indicatif+telephone, pays, ville, entreprise, role, devise });
+      await setSetting('izi360_synced', synced ? '1' : '0');
       const { DEVISES } = await import("../theme");
       const found = DEVISES.find(d => d.label === devise);
       if (found) window.__DEVISE_SYMBOL__ = found.symbol;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { getSetting, importAllData } from './db/index';
+import { getSetting, setSetting, importAllData } from './db/index';
+import { syncIfNeeded } from './hooks/useTracker';
 import { useNetwork } from './hooks/useNetwork';
 import { useDevise } from './hooks/useDevise';
 import { useAnnonces } from './hooks/useAnnonces';
@@ -58,6 +59,12 @@ export default function App() {
       }
     }).catch(() => setChecking(false));
   }, [checking]);
+
+  useEffect(() => {
+    if (isOnline && user) {
+      syncIfNeeded(getSetting, setSetting);
+    }
+  }, [isOnline, user]);
 
   if (checking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1F36' }}>
