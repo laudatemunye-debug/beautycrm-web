@@ -47,6 +47,20 @@ const StepIndicator = ({ current, total }) => (
 );
 
 export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser, importAllData }) => {
+  const [canInstall, setCanInstall] = useState(!!window.__deferredInstallPrompt);
+  useEffect(() => {
+    const handler = () => setCanInstall(true);
+    window.addEventListener('installpromptready', handler);
+    return () => window.removeEventListener('installpromptready', handler);
+  }, []);
+  const handleInstall = async () => {
+    const promptEvent = window.__deferredInstallPrompt;
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    await promptEvent.userChoice;
+    window.__deferredInstallPrompt = null;
+    setCanInstall(false);
+  };
   const [mode, setMode] = useState("welcome");
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
@@ -184,6 +198,9 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
 
         {mode==="welcome" && (
           <div style={{ textAlign:"center" }}>
+            {canInstall && (
+              <PrimaryBtn label="⬇️ Telecharger l'application" onClick={handleInstall} style={{ marginBottom:12, backgroundColor:'#25D366' }} />
+            )}
             <PrimaryBtn label="Creer un nouveau compte" onClick={() => { setError(""); setStep(0); setMode("setup"); }} style={{ marginBottom:12 }} />
             <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
             <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />

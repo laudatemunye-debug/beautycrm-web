@@ -28,7 +28,7 @@ if ('serviceWorker' in navigator) {
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    e.preventDefault();
-  }
+  e.preventDefault();
+  window.__deferredInstallPrompt = e;
+  window.dispatchEvent(new Event('installpromptready'));
 });
