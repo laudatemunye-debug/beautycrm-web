@@ -3,7 +3,7 @@ import { useGoogle } from "../hooks/useGoogle";
 import { GoogleAccountButton } from "../components/GoogleAccountButton";
 import { C, SECURITY_QUESTIONS } from '../theme';
 import { getSetting, setSetting, sha256, exportAllData, importAllData, getVentes, getClients, today, resetDB } from '../db/index';
-import { FieldInput, PickerSelect, PrimaryBtn, GhostBtn, fmtMoney } from '../components/UI';
+import { FieldInput, PickerSelect, PrimaryBtn, GhostBtn, fmtMoney, Modal, FormFooter } from '../components/UI';
 
 const Section = ({ icon, label, color, children, open, onToggle }) => (
   <div style={{ marginBottom: 10 }}>
@@ -87,6 +87,11 @@ export const ParametresPage = ({ user, onLogout }) => {
   const [role, setRole] = useState("");
   const [pays, setPays] = useState("");
 
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatePw, setDeactivatePw] = useState('');
+  const [deactivateError, setDeactivateError] = useState('');
+  const [profileForm, setProfileForm] = useState({ nom: '', role: '', entreprise: '', pays: '', ville: '', telephone: '', email: '' });
   const [factEntreprise, setFactEntreprise] = useState({ nom: '', adresse: '', telephone: '', email: '', logo: '' });
   const [factSaved, setFactSaved] = useState(false);
 
@@ -193,6 +198,43 @@ export const ParametresPage = ({ user, onLogout }) => {
 
 
 
+  const openProfileEdit = async () => {
+    const [nom, r, ent, p, v, tel, email] = await Promise.all([
+      getSetting('username'), getSetting('role'), getSetting('entreprise'),
+      getSetting('pays'), getSetting('ville'), getSetting('telephone'), getSetting('email'),
+    ]);
+    setProfileForm({ nom: nom||'', role: r||'', entreprise: ent||'', pays: p||'', ville: v||'', telephone: tel||'', email: email||'' });
+    setShowProfileEdit(true);
+  };
+
+  const saveProfile = async () => {
+    await setSetting('username', profileForm.nom);
+    await setSetting('role', profileForm.role);
+    await setSetting('entreprise', profileForm.entreprise);
+    await setSetting('pays', profileForm.pays);
+    await setSetting('ville', profileForm.ville);
+    await setSetting('telephone', profileForm.telephone);
+    await setSetting('email', profileForm.email);
+    setRole(profileForm.role);
+    setEntreprise(profileForm.entreprise);
+    setPays(profileForm.pays);
+    setShowProfileEdit(false);
+  };
+
+  const desactiverSecurite = async () => {
+    setDeactivateError('');
+    if (!deactivatePw) { setDeactivateError('Entrez votre mot de passe.'); return; }
+    const stored = await getSetting('password');
+    const hash = await sha256(deactivatePw);
+    if (hash !== stored) { setDeactivateError('Mot de passe incorrect.'); return; }
+    await setSetting('password', '');
+    await setSetting('use_password', '0');
+    setHasPassword(false);
+    setShowDeactivateModal(false);
+    setDeactivatePw('');
+    showMsg("pw", "Protection desactivee.");
+  };
+
   const supprimerCompte = async () => {
     setDeleteError("");
     if (!deletePw) { setDeleteError("Entrez votre mot de passe."); return; }
@@ -284,7 +326,8 @@ export const ParametresPage = ({ user, onLogout }) => {
       <div style={{
         backgroundColor: C.sidebar_bg, borderRadius: 16, padding: 18,
         marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14,
-      }}>
+        cursor: 'pointer',
+      }} onClick={openProfileEdit}>
         <div style={{
           width: 54, height: 54, borderRadius: 27,
           backgroundColor: C.pink + '40',
@@ -294,7 +337,7 @@ export const ParametresPage = ({ user, onLogout }) => {
         <div>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{user}</div>
           <div style={{ color: "#A0A8D0", fontSize: 12 }}>{role || "Distributeur"} · {entreprise}</div>
-          <div style={{ color: "#A0A8D0", fontSize: 11, marginTop: 2 }}>📍 {pays}</div>
+          <div style={{ color: "#A0A8D0", fontSize: 11, marginTop: 2 }}>{pays}</div>
         </div>
       </div>
 
@@ -396,6 +439,14 @@ export const ParametresPage = ({ user, onLogout }) => {
             </>
           )}
           <div style={{ height: 1, backgroundColor: C.card_border, margin: "20px 0" }} />
+          {hasPassword && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text_primary, marginBottom: 4 }}>Desactiver la protection</div>
+              <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 12 }}>L'app s'ouvrira sans demander de mot de passe.</div>
+              <GhostBtn label="Desactiver le mot de passe" onClick={() => { setDeactivatePw(''); setDeactivateError(''); setShowDeactivateModal(true); }} style={{ marginBottom: 16 }} />
+              <div style={{ height: 1, backgroundColor: C.card_border, marginBottom: 20 }} />
+            </>
+          )}
           <div style={{ fontWeight: 700, fontSize: 13, color: C.danger, marginBottom: 8 }}>Zone de danger</div>
           <div style={{ fontSize: 12, color: C.text_secondary, marginBottom: 12 }}>Supprimer definitivement votre compte et toutes vos donnees.</div>
           <GhostBtn label="🗑 Supprimer mon compte" onClick={() => { setDeletePw(""); setDeleteError(""); setShowDeleteModal(true); }} style={{ borderColor: C.danger, color: C.danger }} />
@@ -439,6 +490,32 @@ export const ParametresPage = ({ user, onLogout }) => {
       <Section icon="📜" label="Politique de confidentialite" color="#8B5CF6" open={open==='politique'} onToggle={() => toggle('politique')}>
         <PolitiqueConfidentialite />
       </Section>
+
+      {showDeactivateModal && (
+        <Modal visible onClose={() => setShowDeactivateModal(false)} title="Confirmer la desactivation">
+          <div style={{ padding: 16 }}>
+            <div style={{ fontSize: 13, color: C.text_secondary, marginBottom: 16 }}>Entrez votre mot de passe pour confirmer la desactivation de la protection.</div>
+            {deactivateError && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{deactivateError}</div>}
+            <FieldInput label="Mot de passe" value={deactivatePw} onChange={setDeactivatePw} type="password" />
+          </div>
+          <FormFooter onSave={desactiverSecurite} onClose={() => setShowDeactivateModal(false)} saveLabel="Confirmer" saveColor={C.danger} />
+        </Modal>
+      )}
+
+      {showProfileEdit && (
+        <Modal visible onClose={() => setShowProfileEdit(false)} title="Modifier le profil">
+          <div style={{ padding: 16 }}>
+            <FieldInput label="Nom" value={profileForm.nom} onChange={v => setProfileForm(f=>({...f,nom:v}))} />
+            <FieldInput label="Role" value={profileForm.role} onChange={v => setProfileForm(f=>({...f,role:v}))} />
+            <FieldInput label="Entreprise" value={profileForm.entreprise} onChange={v => setProfileForm(f=>({...f,entreprise:v}))} />
+            <FieldInput label="Pays" value={profileForm.pays} onChange={v => setProfileForm(f=>({...f,pays:v}))} />
+            <FieldInput label="Ville" value={profileForm.ville} onChange={v => setProfileForm(f=>({...f,ville:v}))} />
+            <FieldInput label="Telephone" value={profileForm.telephone} onChange={v => setProfileForm(f=>({...f,telephone:v}))} type="tel" />
+            <FieldInput label="Email" value={profileForm.email} onChange={v => setProfileForm(f=>({...f,email:v}))} type="email" />
+          </div>
+          <FormFooter onSave={saveProfile} onClose={() => setShowProfileEdit(false)} saveLabel="Enregistrer" />
+        </Modal>
+      )}
 
       {/* Footer */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
