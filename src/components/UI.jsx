@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { C } from '../theme';
 
 export const Card = ({ children, style, onClick }) => (
@@ -232,6 +233,23 @@ export const PickerSelect = ({ label, value, onChange, options }) => (
 );
 
 export const Modal = ({ visible, onClose, title, children, fullscreen, footer }) => {
+  useEffect(() => {
+    if (!visible) return;
+    const scrollY = window.scrollY;
+    const prevPosition = document.body.style.position;
+    const prevTop = document.body.style.top;
+    const prevWidth = document.body.style.width;
+    document.body.style.position = 'fixed';
+    document.body.style.top = '-' + scrollY + 'px';
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.position = prevPosition;
+      document.body.style.top = prevTop;
+      document.body.style.width = prevWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [visible]);
+
   if (!visible) return null;
   return (
     <div style={{
@@ -270,7 +288,7 @@ export const Modal = ({ visible, onClose, title, children, fullscreen, footer })
           {children}
         </div>
         {footer && (
-          <div style={{ flexShrink: 0, borderTop: '1px solid '+C.card_border }}>
+          <div style={{ flexShrink: 0, borderTop: '1px solid '+C.card_border, paddingBottom: 'env(safe-area-inset-bottom)' }}>
             {footer}
           </div>
         )}
