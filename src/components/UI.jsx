@@ -288,7 +288,7 @@ export const Modal = ({ visible, onClose, title, children, fullscreen, footer })
           {children}
         </div>
         {footer && (
-          <div style={{ flexShrink: 0, borderTop: '1px solid '+C.card_border, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div style={{ flexShrink: 0, borderTop: '1px solid '+C.card_border, paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
             {footer}
           </div>
         )}
