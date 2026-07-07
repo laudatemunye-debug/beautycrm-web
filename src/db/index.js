@@ -276,6 +276,43 @@ export const ajouterVersement = async (creditId, montant) => {
 };
 
 // EXPORT / IMPORT
+// Convertit tous les montants existants (produits, ventes, credits, approvisionnements)
+// vers une nouvelle devise selon un taux (1 ancienne devise = taux x nouvelle devise)
+export const convertirDevise = async (taux) => {
+  const t = parseFloat(taux);
+  if (!t || t <= 0) throw new Error('Taux de conversion invalide');
+  const conv = (n) => Math.round((Number(n) || 0) * t * 100) / 100;
+
+  const produits = await getProduits();
+  for (const p of produits) {
+    await saveProduit({ ...p, prix_achat: conv(p.prix_achat), prix_vente: conv(p.prix_vente) });
+  }
+
+  const ventes = await getVentes();
+  for (const v of ventes) {
+    await saveVente({ ...v, prix_achat: conv(v.prix_achat), prix_vente: conv(v.prix_vente) });
+  }
+
+  const approvisionnements = await getApprovisionnements();
+  for (const a of approvisionnements) {
+    await saveApprovisionnement({ ...a, prix_achat: conv(a.prix_achat) });
+  }
+
+  const credits = await getCredits();
+  for (const c of credits) {
+    const versements = (c.versements || []).map(v => ({ ...v, montant: conv(v.montant) }));
+    await saveCredit({
+      ...c,
+      prix_achat: conv(c.prix_achat),
+      prix_vente: conv(c.prix_vente),
+      montant_total: conv(c.montant_total),
+      avance: conv(c.avance),
+      montant_restant: conv(c.montant_restant),
+      versements,
+    });
+  }
+};
+
 export const exportAllData = async () => {
   const db = await getDB();
   const [clients, produits, ventes, prospects, rdvs, seminaires, participants, approvisionnements] = await Promise.all(

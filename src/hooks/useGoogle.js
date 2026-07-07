@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { setSetting, getSetting } from '../db/index';
+import { setSetting, getSetting, importAllData } from '../db/index';
+import { encryptPayload, decryptPayload } from '../utils/crypto';
 
 const CLIENT_ID = '6659063018-gs71riiatkgkk4gc6nuou23b8rut3a6b.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
 const FILE_NAME = 'beautycrm-backup.json';
+const FILE_NAME_SHARED = 'beautycrm-shared.json';
+const DRIVE_API_KEY = 'AIzaSyDDzkNUvKpN987_Q90hSvhuMoeYpjwU1OQ';
 
 let _tokenClient = null;
 let _accessToken = null;
@@ -159,6 +162,64 @@ export const useGoogle = () => {
     } finally { setSyncing(false); }
   };
 
+  const findSharedFile = async () => {
+    const res = await authFetch(`https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME_SHARED}' and trashed=false&spaces=drive&fields=files(id,name)`);
+    const data = await res.json();
+    return data.files?.[0] || null;
+  };
+
+  const uploadSharedData = async (secret, dataObj) => {
+    setSyncing(true); setError('');
+    try {
+      const encrypted = await encryptPayload(secret, dataObj);
+      const blob = new Blob([JSON.stringify(encrypted)], { type: 'application/json' });
+      const existing = await findSharedFile();
+      const meta = { name: FILE_NAME_SHARED, mimeType: 'application/json' };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+      form.append('file', blob);
+      const url = existing
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
+        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+      const res = await authFetch(url, { method: existing ? 'PATCH' : 'POST', body: form });
+      if (!res.ok) throw new Error('Upload partage echoue ' + res.status);
+      return existing ? existing.id : (await res.json()).id;
+    } catch(e) {
+      setError(e.message);
+      return null;
+    } finally { setSyncing(false); }
+  };
+
+  // Telechargement cote employe : pas besoin d'auth Google, fichier en lecture publique
+  const downloadSharedData = async (fileId, secret) => {
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${DRIVE_API_KEY}`);
+      if (!res.ok) throw new Error('Fichier partage introuvable (' + res.status + ')');
+      const encrypted = await res.json();
+      const data = await decryptPayload(secret, encrypted);
+      return data;
+    } catch(e) {
+      setError('Erreur lecture partage: ' + e.message);
+      return null;
+    }
+  };
+
+  const shareFileForEmployees = async () => {
+    try {
+      const file = await findSharedFile();
+      if (!file) return null;
+      await authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+      });
+      return file.id;
+    } catch(e) {
+      setError('Erreur partage: ' + e.message);
+      return null;
+    }
+  };
+
   const downloadBackup = async () => {
     setSyncing(true); setError('');
     try {
@@ -217,7 +278,6 @@ export const useGoogle = () => {
       merged.exported_at = new Date().toISOString();
       
       // 4. Sauvegarde merged en local
-      const { importAllData } = await import('../db/index');
       await importAllData(merged);
       
       // 5. Upload merged sur Drive
@@ -230,5 +290,5 @@ export const useGoogle = () => {
     } finally { setSyncing(false); }
   };
 
-  return { googleUser, syncing, authReady, error, connect, disconnect, uploadBackup, downloadBackup, mergeSync };
+  return { googleUser, syncing, authReady, error, connect, disconnect, uploadBackup, downloadBackup, mergeSync, shareFileForEmployees, uploadSharedData, downloadSharedData };
 };

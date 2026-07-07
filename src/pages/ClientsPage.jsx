@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C, CANAUX } from '../theme';
 import { getClients, saveClient, deleteClient, getVentes, saveVente, getProduits, adjustStock, today, nowISO, generateId } from '../db/index';
+import { usePermissions } from '../hooks/usePermissions';
 import { Card, SearchBar, SectionTitle, PrimaryBtn, GhostBtn, FieldInput, PickerSelect, Modal, FormFooter, Avatar, Badge, Divider, fmtMoney, fmtDate } from '../components/UI';
 import { useDevise } from '../hooks/useDevise';
 
@@ -272,6 +273,7 @@ export const ClientsPage = () => {
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const { can } = usePermissions();
   const [showForm, setShowForm] = useState(false);
   const [editClient, setEditClient] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -286,6 +288,7 @@ export const ClientsPage = () => {
   useEffect(() => { load(); }, [load]);
 
   const del = (client) => {
+    if (!can('deleteClient')) { alert('Vous n\'avez pas la permission de supprimer un client.'); return; }
     if (!window.confirm(`Supprimer ${client.nom} ?`)) return;
     deleteClient(client._id).then(load);
   };
@@ -307,7 +310,7 @@ export const ClientsPage = () => {
   return (
     <div style={{ padding: '14px', paddingBottom: 80, width: '100%', boxSizing: 'border-box' }}>
       <SearchBar value={search} onChange={setSearch} placeholder="Chercher un client..." />
-      <PrimaryBtn label="+ Nouveau client" onClick={() => { setEditClient(null); setShowForm(true); }} style={{ marginBottom: 14 }} />
+      {can('addClient') && <PrimaryBtn label="+ Nouveau client" onClick={() => { setEditClient(null); setShowForm(true); }} style={{ marginBottom: 14 }} />}
       <SectionTitle title={`${filtered.length} client(s)`} />
       {loading
         ? <div style={{ textAlign: 'center', padding: 40, color: C.text_secondary }}>Chargement...</div>
@@ -330,7 +333,7 @@ export const ClientsPage = () => {
                     <div style={{ marginTop: 4 }}><Badge label={c.canal} color={C.accent} /></div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={e => { e.stopPropagation(); setEditClient(c); setShowForm(true); }} style={{ backgroundColor: C.accent, border: 'none', borderRadius: 7, width: 28, height: 28, cursor: 'pointer', color: '#fff' }}>✏</button>
+                    {can('editClient') && <button onClick={e => { e.stopPropagation(); setEditClient(c); setShowForm(true); }} style={{ backgroundColor: C.accent, border: 'none', borderRadius: 7, width: 28, height: 28, cursor: 'pointer', color: '#fff' }}>✏</button>}
                     <button onClick={e => { e.stopPropagation(); del(c); }} style={{ backgroundColor: C.danger, border: 'none', borderRadius: 7, width: 28, height: 28, cursor: 'pointer', color: '#fff' }}>🗑</button>
                   </div>
                 </div>

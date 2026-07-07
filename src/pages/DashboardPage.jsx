@@ -3,6 +3,7 @@ import { C } from '../theme';
 import { getClients, getVentes, getProspects, getRdvs, getSeminaires, getCredits, today } from '../db/index';
 import { KpiCard, Card, SectionTitle, fmtMoney, fmtDate, Badge, getDeviseSymbol } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
+import { useEntreprise } from "../hooks/useEntreprise";
 
 export const DashboardPage = ({ onNavigate }) => {
   const [kpis, setKpis] = useState({});
@@ -16,6 +17,32 @@ export const DashboardPage = ({ onNavigate }) => {
   const [rdvs, setRdvs] = useState([]);
   const [loading, setLoading] = useState(true);
   const devise = useDevise();
+  const bizMode = useEntreprise();
+  const [syncingHome, setSyncingHome] = useState(false);
+  const [syncMsgHome, setSyncMsgHome] = useState('');
+  const [pendingSync, setPendingSync] = useState(false);
+
+  useEffect(() => {
+    if (bizMode.mode === 'admin' || bizMode.mode === 'employe') {
+      bizMode.checkPendingSync().then(setPendingSync);
+    }
+  }, [bizMode.mode]);
+
+  const handleSyncHome = async () => {
+    if (syncingHome) return;
+    setSyncingHome(true);
+    setSyncMsgHome('');
+    try {
+      await bizMode.syncEntreprise();
+      setSyncMsgHome('Sync reussie');
+      setPendingSync(false);
+    } catch(e) {
+      setSyncMsgHome('Erreur sync');
+    } finally {
+      setSyncingHome(false);
+      setTimeout(() => setSyncMsgHome(''), 3000);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -213,6 +240,42 @@ export const DashboardPage = ({ onNavigate }) => {
           ))
         }
       </Card>
+
+      {(bizMode.mode === 'admin' || bizMode.mode === 'employe') && (
+        <>
+          <style>{`@keyframes dashSync-spin { to { transform: rotate(360deg); } }`}</style>
+          <div
+            onClick={handleSyncHome}
+            style={{
+              position: 'fixed',
+              bottom: 76, left: 16,
+              width: 52, height: 52,
+              borderRadius: '50%',
+              backgroundColor: pendingSync ? C.accent : C.text_light,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              cursor: syncingHome ? 'not-allowed' : 'pointer',
+              zIndex: 90,
+            }}
+          >
+            <span style={{
+              fontSize: 22,
+              display: 'inline-block',
+              animation: syncingHome ? 'dashSync-spin 0.9s linear infinite' : 'none',
+            }}>🔄</span>
+          </div>
+          {syncMsgHome && (
+            <div style={{
+              position: 'fixed', bottom: 132, left: 16,
+              backgroundColor: syncMsgHome.startsWith('Erreur') ? C.danger : C.success,
+              color: '#fff', fontSize: 11, fontWeight: 700,
+              padding: '6px 10px', borderRadius: 8, zIndex: 90,
+            }}>
+              {syncMsgHome}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

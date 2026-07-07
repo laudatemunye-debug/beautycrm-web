@@ -1,7 +1,8 @@
+import { usePermissions } from '../hooks/usePermissions';
 import { useState, useEffect, useCallback } from 'react';
 import { useDevise } from '../hooks/useDevise';
 import { C } from '../theme';
-import { getProduits, saveProduit, deleteProduit, getTendances, addStock, saveApprovisionnement, getApprovisionnements, getVentes, today } from '../db/index';
+import { getProduits, saveProduit, deleteProduit, getTendances, addStock, saveApprovisionnement, getApprovisionnements, getVentes, today, getSetting } from '../db/index';
 import { SearchBar, SectionTitle, FieldInput, Modal, FormFooter, fmtMoney } from '../components/UI';
 
 const ProduitForm = ({ produit, onClose, onSaved }) => {
@@ -91,11 +92,13 @@ const ApprovForm = ({ produits, onClose, onSaved }) => {
       if (nouveauPrix && produitSelectionne) {
         await saveProduit({ ...produitSelectionne, prix_achat: nouveauPrix });
       }
+      const vendeurActuel = (await getSetting('username')) || '';
       await saveApprovisionnement({
         produit: nom,
         quantite: q,
         prix_achat: prixEffectif || 0,
         date: today(),
+        vendeur_nom: vendeurActuel,
       });
       onSaved();
     } catch(e) { setError(e.message); }
@@ -350,6 +353,7 @@ const MonStockPage = ({ produits, onClose, onEdit, onDelete, topVendus, alertesS
 };
 
 export const ProduitsPage = ({ onHideHeader }) => {
+  const { can } = usePermissions();
   const [produits, setProduits] = useState([]);
   const [tendances, setTendances] = useState({});
   const [search, setSearch] = useState('');

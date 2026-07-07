@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useEntreprise } from '../hooks/useEntreprise';
+
 import { C, SECURITY_QUESTIONS, DEVISES } from '../theme';
 import { getSetting, setSetting, sha256, clearAllData } from '../db/index';
 import { trackUser } from '../hooks/useTracker';
@@ -62,6 +64,12 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
     setCanInstall(false);
   };
   const [mode, setMode] = useState("welcome");
+  const bizMode = useEntreprise();
+  const [codeEntreprise, setCodeEntreprise] = useState('');
+  const [nomEmploye, setNomEmploye] = useState('');
+  const [posteEmploye, setPosteEmploye] = useState('vendeur');
+  const [joinError, setJoinError] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -156,7 +164,6 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       await setSetting('email', email);
       const synced = await trackUser({ nom: setupNom.trim(), email, telephone: indicatif+telephone, pays, ville, entreprise, role, devise });
       await setSetting('izi360_synced', synced ? '1' : '0');
-      const { DEVISES } = await import("../theme");
       const found = DEVISES.find(d => d.label === devise);
       if (found) window.__DEVISE_SYMBOL__ = found.symbol;
       if (usePassword) {
@@ -203,7 +210,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             )}
             <PrimaryBtn label="Creer un nouveau compte" onClick={() => { setError(""); setStep(0); setMode("setup"); }} style={{ marginBottom:12 }} />
             <GhostBtn label="Restaurer depuis Google Drive" onClick={() => setMode("restore")} style={{ marginBottom:12 }} />
-            <GhostBtn label="J'ai deja un compte" onClick={() => setMode("login")} />
+            <GhostBtn label="Rejoindre une entreprise" onClick={() => setMode("join")} />
           </div>
         )}
 
@@ -215,6 +222,35 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <span onClick={() => setMode('reset')} style={{ color:C.accent, fontSize:13, cursor:'pointer', fontWeight:600 }}>Mot de passe oublie ?</span>
             <span onClick={() => { setError(''); setStep(0); setMode('setup'); }} style={{ color:C.text_secondary, fontSize:13, cursor:'pointer' }}>Creer un nouveau compte</span>
           </div>
+        </>)}
+
+        {mode==='join' && (<>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:13, color:C.text_secondary, marginBottom:16, lineHeight:1.6 }}>Entrez le code d'invitation fourni par votre administrateur.</div>
+            {joinError && <div style={{ color:C.danger, fontSize:13, marginBottom:10 }}>{joinError}</div>}
+            <FieldInput label="Code d'invitation (6 chiffres)" value={codeEntreprise} onChange={v => setCodeEntreprise(v.replace(/\D/g,'').slice(0,6))} placeholder="Ex: 336754" />
+            <FieldInput label="Votre nom" value={nomEmploye} onChange={setNomEmploye} placeholder="Ex: Marie" />
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:C.text_secondary, fontWeight:600, marginBottom:6 }}>Votre poste</div>
+              <select value={posteEmploye} onChange={e => setPosteEmploye(e.target.value)} style={{ width:'100%', padding:13, borderRadius:10, border:'1px solid '+C.input_border, backgroundColor:C.input_bg, fontSize:14, color:C.text_primary, fontFamily:'inherit', boxSizing:'border-box' }}>
+                <option value="vendeur">Vendeur</option>
+                <option value="gestionnaire">Gestionnaire</option>
+              </select>
+            </div>
+            <PrimaryBtn label={joinLoading ? "Connexion..." : "Rejoindre l'entreprise"} loading={joinLoading} onClick={async () => {
+              setJoinError('');
+              if (codeEntreprise.length !== 6) { setJoinError('Le code doit contenir 6 chiffres.'); return; }
+              if (!nomEmploye.trim()) { setJoinError('Entrez votre nom.'); return; }
+              setJoinLoading(true);
+              try {
+                await bizMode.rejoindreEntreprise(codeEntreprise, nomEmploye.trim(), posteEmploye);
+                await setSetting('username', nomEmploye.trim());
+                onSuccess(nomEmploye.trim());
+              } catch(e) { setJoinError(e.message); }
+              finally { setJoinLoading(false); }
+            }} />
+          </div>
+          <GhostBtn label="Retour" onClick={() => setMode('welcome')} />
         </>)}
 
         {mode==='setup' && (<>

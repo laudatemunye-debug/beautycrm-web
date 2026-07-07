@@ -1,24 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { getSetting, setSetting, importAllData } from './db/index';
+import { getSetting, setSetting, importAllData, resetDB } from './db/index';
 import { syncIfNeeded } from './hooks/useTracker';
 import { useNetwork } from './hooks/useNetwork';
 import { useDevise } from './hooks/useDevise';
 import { useAnnonces } from './hooks/useAnnonces';
+import { useEntreprise } from './hooks/useEntreprise';
 import { useGoogle } from "./hooks/useGoogle";
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { ClientsPage } from './pages/ClientsPage';
-import { ContactsPage } from './pages/ContactsPage';
-import { VentesPage } from './pages/VentesPage';
-import { ProduitsPage } from './pages/ProduitsPage';
-import { CreditsPage } from './pages/CreditsPage';
-import { SeminairesPage } from './pages/SeminairesPage';
-import { RdvsPage } from './pages/RdvsPage';
-import { RelancesPage } from './pages/RelancesPage';
-import { RapportsPage } from './pages/RapportsPage';
-import { ParametresPage } from './pages/ParametresPage';
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const ClientsPage = lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
+const ContactsPage = lazy(() => import('./pages/ContactsPage').then(m => ({ default: m.ContactsPage })));
+const VentesPage = lazy(() => import('./pages/VentesPage').then(m => ({ default: m.VentesPage })));
+const ProduitsPage = lazy(() => import('./pages/ProduitsPage').then(m => ({ default: m.ProduitsPage })));
+const CreditsPage = lazy(() => import('./pages/CreditsPage').then(m => ({ default: m.CreditsPage })));
+const SeminairesPage = lazy(() => import('./pages/SeminairesPage').then(m => ({ default: m.SeminairesPage })));
+const RdvsPage = lazy(() => import('./pages/RdvsPage').then(m => ({ default: m.RdvsPage })));
+const RelancesPage = lazy(() => import('./pages/RelancesPage').then(m => ({ default: m.RelancesPage })));
+const RapportsPage = lazy(() => import('./pages/RapportsPage').then(m => ({ default: m.RapportsPage })));
+const ParametresPage = lazy(() => import('./pages/ParametresPage').then(m => ({ default: m.ParametresPage })));
 
 export default function App() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
@@ -33,6 +34,86 @@ export default function App() {
   useDevise();
   const { annonce, dismiss } = useAnnonces();
   const { connect: googleConnect, downloadBackup, googleUser: gUser } = useGoogle();
+  const bizMode = useEntreprise();
+  const [revoked, setRevoked] = useState(false);
+  const [adminWhatsapp, setAdminWhatsapp] = useState('');
+  const [motifRevocation, setMotifRevocation] = useState('');
+  const [entrepriseFermee, setEntrepriseFermee] = useState(false);
+  const [suspendue, setSuspendue] = useState(false);
+  const [checkingBlock, setCheckingBlock] = useState(true);
+  const [suspensionMotif, setSuspensionMotif] = useState('');
+  const [suspensionContact, setSuspensionContact] = useState(null);
+  const [vole, setVole] = useState(false);
+  const [voleCode, setVoleCode] = useState('');
+  const [voleError, setVoleError] = useState('');
+  const [voleSubmitting, setVoleSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setCheckingBlock(false); return; }
+    setCheckingBlock(true);
+    Promise.all([
+      bizMode.checkSuspension().then((data) => {
+        if (data.blocked && data.reason === 'suspendue') {
+          setSuspendue(true);
+          setSuspensionMotif(data.motif || '');
+          setSuspensionContact(data.contact || null);
+        }
+      }),
+      bizMode.checkEmployeStatus().then(({ revoked: r, entreprise_fermee, admin_whatsapp, motif, vole: v }) => {
+        if (v) {
+          setVole(true);
+          if (admin_whatsapp) setAdminWhatsapp(admin_whatsapp);
+          else return getSetting('entreprise_admin_whatsapp').then(w => setAdminWhatsapp(w || ''));
+          return;
+        }
+        if (r) {
+          setRevoked(true);
+          setEntrepriseFermee(!!entreprise_fermee);
+          setMotifRevocation(motif || '');
+          if (admin_whatsapp) setAdminWhatsapp(admin_whatsapp);
+          else return getSetting('entreprise_admin_whatsapp').then(w => setAdminWhatsapp(w || ''));
+        }
+      })
+    ]).finally(() => setCheckingBlock(false));
+  }, [user]);
+
+
+  const soumettreCodeVole = async () => {
+    if (!voleCode.trim()) { setVoleError('Entrez le code recu.'); return; }
+    setVoleSubmitting(true);
+    setVoleError('');
+    try {
+      await bizMode.verifierCodeVole(voleCode.trim());
+      await setSetting('vole_attempts', '0');
+      setVole(false);
+      setVoleCode('');
+    } catch (e) {
+      const attemptsRaw = await getSetting('vole_attempts');
+      const attempts = (parseInt(attemptsRaw, 10) || 0) + 1;
+      await setSetting('vole_attempts', String(attempts));
+      if (attempts >= 5) {
+        try {
+          resetDB();
+          await new Promise(resolve => { const req = indexedDB.deleteDatabase("beautycrm"); req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve; });
+        } catch(_) {}
+        setTimeout(() => window.location.reload(), 300);
+        return;
+      }
+      setVoleError((e.message || 'Code incorrect.') + ` (Tentative ${attempts}/5)`);
+    } finally {
+      setVoleSubmitting(false);
+    }
+  };
+
+  const fermerRevocation = async () => {
+    try {
+      resetDB();
+      await new Promise(resolve => { const req = indexedDB.deleteDatabase("beautycrm"); req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve; });
+      setTimeout(() => window.location.reload(), 300);
+    } catch(_) {
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     if (!annonce) return;
@@ -77,6 +158,111 @@ export default function App() {
   );
 
   if (!user) return <LoginPage key={loginKey} onSuccess={setUser} googleConnect={googleConnect} downloadBackup={downloadBackup} googleUser={gUser} importAllData={importAllData} />;
+
+  if (checkingBlock) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1F36' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>💄</div>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>BeautyCRM</div>
+        <div style={{ color: '#A0A8D0', fontSize: 12, marginTop: 6 }}>Chargement...</div>
+      </div>
+    </div>
+  );
+
+  if (suspendue) {
+    const isAdminSide = suspensionContact?.type === 'support';
+    const whatsappUrl = suspensionContact?.whatsapp ? `https://wa.me/${suspensionContact.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(isAdminSide ? 'Bonjour, mon compte entreprise a ete suspendu. Pouvez-vous me donner plus d informations ?' : 'Bonjour, mon compte a ete suspendu car l entreprise est suspendue. Pouvez-vous me donner plus d informations ?')}` : null;
+    const mailUrl = isAdminSide ? `mailto:${suspensionContact.email}` : null;
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: '#1A1F36', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⛔</div>
+        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 10 }}>Compte suspendu</div>
+        <div style={{ color: '#A0A8D0', fontSize: 14, marginBottom: suspensionMotif ? 14 : 28, lineHeight: 1.6, maxWidth: 320 }}>
+          {isAdminSide
+            ? "Votre compte entreprise a ete suspendu. Contactez le support pour plus d'informations."
+            : "Cette entreprise a ete suspendue. Veuillez contacter votre entreprise pour plus d'informations."}
+        </div>
+        {suspensionMotif && (
+          <div style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid #3A4166', borderRadius: 10, padding: '10px 14px', marginBottom: 28, maxWidth: 320 }}>
+            <div style={{ color: '#7A83B0', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MOTIF</div>
+            <div style={{ color: '#fff', fontSize: 13, lineHeight: 1.5 }}>{suspensionMotif}</div>
+          </div>
+        )}
+        {whatsappUrl && (
+          <button onClick={() => window.open(whatsappUrl, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 12 }}>
+            {isAdminSide ? "💬 Contacter le support (WhatsApp)" : "💬 Contacter l'entreprise (WhatsApp)"}
+          </button>
+        )}
+        {isAdminSide && mailUrl && (
+          <button onClick={() => window.open(mailUrl, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#fff', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 12 }}>
+            ✉️ Contacter le support (Email)
+          </button>
+        )}
+        <button onClick={fermerRevocation} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#A0A8D0', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          Fermer
+        </button>
+      </div>
+    );
+  }
+
+  if (vole) {
+    const whatsappUrlVole = adminWhatsapp ? `https://wa.me/${adminWhatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Bonjour, mon appareil BeautyCRM a ete marque comme vole/perdu. Pouvez-vous me communiquer le code de deverrouillage ?')}` : null;
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: '#1A1F36', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 10 }}>Appareil verrouille</div>
+        <div style={{ color: '#A0A8D0', fontSize: 14, marginBottom: 24, lineHeight: 1.6, maxWidth: 320 }}>
+          Cet appareil a ete signale comme vole ou perdu par l'administrateur. Entrez le code de deverrouillage qui vous a ete communique pour continuer.
+        </div>
+        <input
+          value={voleCode}
+          onChange={e => setVoleCode(e.target.value)}
+          placeholder="Code a 6 chiffres"
+          style={{ width: '100%', maxWidth: 320, backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid #3A4166', borderRadius: 12, padding: 14, color: '#fff', fontSize: 16, textAlign: 'center', letterSpacing: 4, marginBottom: 10 }}
+        />
+        {voleError && (
+          <div style={{ color: '#FF6B6B', fontSize: 13, marginBottom: 14 }}>{voleError}</div>
+        )}
+        <button onClick={soumettreCodeVole} disabled={voleSubmitting} style={{ width: '100%', maxWidth: 320, backgroundColor: '#3D5AFE', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontWeight: 700, fontSize: 14, cursor: voleSubmitting ? 'not-allowed' : 'pointer', marginBottom: 12, opacity: voleSubmitting ? 0.6 : 1 }}>
+          {voleSubmitting ? 'Verification...' : 'Deverrouiller'}
+        </button>
+        {whatsappUrlVole && (
+          <button onClick={() => window.open(whatsappUrlVole, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+            💬 Demander le code via WhatsApp
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (revoked) {
+    const whatsappUrl = adminWhatsapp ? `https://wa.me/${adminWhatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(entrepriseFermee ? 'Bonjour, le mode entreprise a ete ferme. Pouvez-vous me donner plus d informations ?' : 'Bonjour, mon acces a ete revoque. Pouvez-vous me donner plus d informations ?')}` : null;
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: '#1A1F36', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 10 }}>{entrepriseFermee ? "Entreprise fermee" : "Acces revoque"}</div>
+        <div style={{ color: '#A0A8D0', fontSize: 14, marginBottom: motifRevocation ? 14 : 28, lineHeight: 1.6, maxWidth: 320 }}>
+          {entrepriseFermee
+            ? "L'entreprise a ferme le mode entreprise. Veuillez contacter l'entreprise pour plus d'informations."
+            : "Vous avez ete revoque par l'entreprise. Veuillez contacter l'entreprise pour plus d'informations."}
+        </div>
+        {motifRevocation && (
+          <div style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid #3A4166', borderRadius: 10, padding: '10px 14px', marginBottom: 28, maxWidth: 320 }}>
+            <div style={{ color: '#7A83B0', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MOTIF</div>
+            <div style={{ color: '#fff', fontSize: 13, lineHeight: 1.5 }}>{motifRevocation}</div>
+          </div>
+        )}
+        {whatsappUrl && (
+          <button onClick={() => window.open(whatsappUrl, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 12 }}>
+            💬 Contacter via WhatsApp
+          </button>
+        )}
+        <button onClick={fermerRevocation} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#A0A8D0', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          Fermer
+        </button>
+      </div>
+    );
+  }
 
   const renderPage = () => {
     switch(page) {
@@ -127,8 +313,10 @@ export default function App() {
           </div>
         </div>
       )}
-      <Layout page={page} onNavigate={setPage} user={user} hideHeader={hideHeader}>
-        {renderPage()}
+      <Layout page={page} onNavigate={setPage} user={user} hideHeader={hideHeader} entrepriseMode={bizMode.mode}>
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Chargement...</div>}>
+          {renderPage()}
+        </Suspense>
       </Layout>
       {needRefresh && (
         <div style={{

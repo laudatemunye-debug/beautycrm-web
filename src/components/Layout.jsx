@@ -27,6 +27,16 @@ const BOTTOM_NAV = [
   { id: 'stock', icon: '📦', label: 'Stock' },
 ];
 
+// Mode entreprise : 4 items autour du gros bouton central "Ventes"
+const BOTTOM_NAV_ENTREPRISE_LEFT = [
+  { id: 'dashboard', icon: '⊞', label: 'Accueil' },
+  { id: 'clients',   icon: '👤', label: 'Clients' },
+];
+const BOTTOM_NAV_ENTREPRISE_RIGHT = [
+  { id: 'credits', icon: '💳', label: 'Crédits' },
+  { id: 'stock',   icon: '📦', label: 'Stock' },
+];
+
 export const PAGE_TITLES = {
   dashboard:  'Tableau de bord',
   clients:    'Clients',
@@ -256,44 +266,98 @@ const Header = ({ title, onMenu, user }) => {
   );
 };
 
-const BottomNav = ({ active, onNavigate }) => (
-  <div style={{
-    position: 'fixed',
-    bottom: 0, left: 0, right: 0,
-    backgroundColor: '#fff',
-    borderTop: `1px solid ${C.card_border}`,
-    display: 'flex',
-    zIndex: 100,
-    maxWidth: '100%',
-    margin: '0 auto',
-  }}>
-    {BOTTOM_NAV.map(item => (
-      <div
-        key={item.id}
-        onClick={() => onNavigate(item.id)}
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '10px 0 8px',
-          cursor: 'pointer',
-          gap: 2,
-        }}
-      >
-        <span style={{ fontSize: 20 }}>{item.icon}</span>
-        <span style={{ fontSize: 9, color: active === item.id ? C.accent : C.text_secondary, fontWeight: active === item.id ? 700 : 400 }}>
-          {item.label}
-        </span>
-        {active === item.id && (
-          <div style={{ width: 18, height: 3, backgroundColor: C.accent, borderRadius: 2 }} />
-        )}
-      </div>
-    ))}
+const NavItem = ({ item, active, onNavigate }) => (
+  <div
+    onClick={() => onNavigate(item.id)}
+    style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '10px 0 8px',
+      cursor: 'pointer',
+      gap: 2,
+    }}
+  >
+    <span style={{ fontSize: 20 }}>{item.icon}</span>
+    <span style={{ fontSize: 9, color: active === item.id ? C.accent : C.text_secondary, fontWeight: active === item.id ? 700 : 400 }}>
+      {item.label}
+    </span>
+    {active === item.id && (
+      <div style={{ width: 18, height: 3, backgroundColor: C.accent, borderRadius: 2 }} />
+    )}
   </div>
 );
 
-export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader }) => {
+const BottomNav = ({ active, onNavigate, entrepriseMode }) => {
+  // Mode entreprise (admin ou employe) : 4 items + gros bouton central "Ventes"
+  if (entrepriseMode === 'admin' || entrepriseMode === 'employe') {
+    return (
+      <div style={{
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        backgroundColor: '#fff',
+        borderTop: `1px solid ${C.card_border}`,
+        display: 'flex',
+        alignItems: 'flex-end',
+        zIndex: 100,
+        maxWidth: '100%',
+        margin: '0 auto',
+      }}>
+        {BOTTOM_NAV_ENTREPRISE_LEFT.map(item => (
+          <NavItem key={item.id} item={item} active={active} onNavigate={onNavigate} />
+        ))}
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div
+            onClick={() => onNavigate('ventes')}
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: '50%',
+              marginTop: -34,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              background: `linear-gradient(135deg, ${C.accent} 0%, ${C.success} 100%)`,
+              boxShadow: '0 6px 16px rgba(61,90,254,0.45)',
+              border: '3px solid #fff',
+            }}
+            title="Ventes"
+          >
+            <span style={{ fontSize: 28, color: '#fff', fontWeight: 700, lineHeight: 1 }}>+</span>
+          </div>
+          <span style={{ fontSize: 9, color: C.text_secondary, fontWeight: 400, marginTop: 4 }}>Vente</span>
+        </div>
+
+        {BOTTOM_NAV_ENTREPRISE_RIGHT.map(item => (
+          <NavItem key={item.id} item={item} active={active} onNavigate={onNavigate} />
+        ))}
+      </div>
+    );
+  }
+
+  // Mode personnel : interface actuelle inchangée
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 0, left: 0, right: 0,
+      backgroundColor: '#fff',
+      borderTop: `1px solid ${C.card_border}`,
+      display: 'flex',
+      zIndex: 100,
+      maxWidth: '100%',
+      margin: '0 auto',
+    }}>
+      {BOTTOM_NAV.map(item => (
+        <NavItem key={item.id} item={item} active={active} onNavigate={onNavigate} />
+      ))}
+    </div>
+  );
+};
+
+export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader, entrepriseMode }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateAvailable, applyUpdate } = useUpdateSW();
 
@@ -336,7 +400,7 @@ export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHead
         {children}
       </div>
 
-      {!hideHeader && <BottomNav active={page} onNavigate={onNavigate} />}
+      {!hideHeader && <BottomNav active={page} onNavigate={onNavigate} entrepriseMode={entrepriseMode} />}
     </div>
   );
 };

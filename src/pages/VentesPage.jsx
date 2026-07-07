@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { usePermissions } from '../hooks/usePermissions';
 import { C, CANAUX } from '../theme';
 import { getVentes, getClients, saveClient, saveVente, getProduits, adjustStock, today, deleteVente, getSetting, setSetting, saveFacture, getFactures, deleteFacture } from '../db/index';
 import jsPDF from 'jspdf';
@@ -349,6 +350,7 @@ const VenteEditForm = ({ venteEdit, onClose, onSaved, onNavigate }) => {
     }
     setLoading(true);
     try {
+      const vendeurActuel = venteEdit.vendeur_nom || (await getSetting('username')) || '';
       await saveVente({
         _id: venteEdit._id,
         client_id: clientFound._id,
@@ -361,6 +363,7 @@ const VenteEditForm = ({ venteEdit, onClose, onSaved, onNavigate }) => {
         notes: form.notes,
         statut_paiement: venteEdit.statut_paiement,
         date_echeance: form.date_echeance || null,
+        vendeur_nom: vendeurActuel,
       });
       const diff = ancienneQteVente - qte;
       if (diff !== 0) await adjustStock(form.produit, diff);
@@ -603,6 +606,7 @@ const VentureFactureEditForm = ({ ventesGroupe, onClose, onSaved, onNavigate }) 
           statut_paiement: estCredit ? 'credit' : 'paye',
           date_echeance: estCredit && dateEcheance ? dateEcheance : null,
           facture_numero: numero || null,
+          vendeur_nom: it.vendeur_nom || (await getSetting('username')) || '',
         };
         if (it._id) payload._id = it._id;
         await saveVente(payload);
@@ -829,6 +833,7 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
       const dateV = today();
       const estCredit = modeCredit || methode === 'Credit';
       const numero = await getNextNumeroFacture();
+      const vendeurActuel = (await getSetting('username')) || '';
       for (const item of panier) {
         await saveVente({
           client_id: clientFound._id,
@@ -837,6 +842,7 @@ const VentePanierForm = ({ onClose, onSaved, onNavigate, modeCredit = false }) =
           prix_achat: item.prix_achat,
           prix_vente: item.prix_vente,
           date_vente: dateV,
+          vendeur_nom: vendeurActuel,
           methode_paiement: methode,
           notes: '',
           statut_paiement: estCredit ? 'credit' : 'paye',
@@ -1101,7 +1107,9 @@ const FacturesModal = ({ onClose }) => {
 };
 
 export const VentesPage = ({ onNavigate }) => {
+  const { can, role } = usePermissions();
   const [ventes, setVentes] = useState([]);
+  const [monUsername, setMonUsername] = useState('');
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -1114,9 +1122,10 @@ export const VentesPage = ({ onNavigate }) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [v, c] = await Promise.all([getVentes(), getClients()]);
+    const [v, c, uname] = await Promise.all([getVentes(), getClients(), getSetting('username')]);
     setVentes(v);
     setClients(c);
+    setMonUsername(uname || '');
     setLoading(false);
   }, []);
 
@@ -1124,7 +1133,11 @@ export const VentesPage = ({ onNavigate }) => {
 
   const getClientNom = (id) => clients.find(c => c._id === id)?.nom || 'Inconnu';
 
-  const filtered = ventes.filter(v =>
+  const ventesVisibles = (role === 'vendeur' && !can('viewAllVentes'))
+    ? ventes.filter(v => v.vendeur_nom === monUsername)
+    : ventes;
+
+  const filtered = ventesVisibles.filter(v =>
     getClientNom(v.client_id).toLowerCase().includes(search.toLowerCase()) ||
     (v.produit || '').toLowerCase().includes(search.toLowerCase())
   );

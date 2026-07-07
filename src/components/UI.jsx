@@ -81,7 +81,7 @@ export const GhostBtn = ({ label, onClick, style }) => (
   </button>
 );
 
-export const FieldInput = ({ label, value, onChange, placeholder, multiline, type }) => (
+export const FieldInput = ({ label, value, onChange, placeholder, multiline, type, disabled }) => (
   <div style={{ marginBottom: 14 }}>
     {label && <div style={{ fontSize: 11, color: C.text_secondary, fontWeight: 600, marginBottom: 6 }}>{label}</div>}
     {multiline ? (
@@ -90,13 +90,14 @@ export const FieldInput = ({ label, value, onChange, placeholder, multiline, typ
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder || ''}
         rows={3}
+        disabled={disabled}
         style={{
-          backgroundColor: C.input_bg,
+          backgroundColor: disabled ? C.card_border : C.input_bg,
           border: `1px solid ${C.input_border}`,
           borderRadius: 10,
           padding: 13,
           fontSize: 14,
-          color: C.text_primary,
+          color: disabled ? C.text_secondary : C.text_primary,
           width: '100%',
           boxSizing: 'border-box',
           resize: 'vertical',
@@ -109,13 +110,14 @@ export const FieldInput = ({ label, value, onChange, placeholder, multiline, typ
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder || ''}
+        disabled={disabled}
         style={{
-          backgroundColor: C.input_bg,
+          backgroundColor: disabled ? C.card_border : C.input_bg,
           border: `1px solid ${C.input_border}`,
           borderRadius: 10,
           padding: 13,
           fontSize: 14,
-          color: C.text_primary,
+          color: disabled ? C.text_secondary : C.text_primary,
           width: '100%',
           boxSizing: 'border-box',
           fontFamily: 'inherit',
@@ -229,26 +231,27 @@ export const PickerSelect = ({ label, value, onChange, options }) => (
   </div>
 );
 
-export const Modal = ({ visible, onClose, title, children }) => {
+export const Modal = ({ visible, onClose, title, children, fullscreen, footer }) => {
   if (!visible) return null;
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      backgroundColor: 'rgba(26,31,54,0.55)',
+      backgroundColor: fullscreen ? '#fff' : 'rgba(26,31,54,0.55)',
       zIndex: 1000,
       display: 'flex',
-      alignItems: 'flex-end',
+      alignItems: fullscreen ? 'stretch' : 'flex-end',
       justifyContent: 'center',
       padding: 0,
     }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={e => { if (!fullscreen && e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
         backgroundColor: '#fff',
-        borderRadius: '20px 20px 0 0',
+        borderRadius: fullscreen ? 0 : '20px 20px 0 0',
         width: '100%',
         maxWidth: '100vw',
-        maxHeight: '90vh',
+        height: fullscreen ? '100vh' : undefined,
+        maxHeight: fullscreen ? '100vh' : '90vh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -261,11 +264,16 @@ export const Modal = ({ visible, onClose, title, children }) => {
           borderBottom: `1px solid ${C.card_border}`,
         }}>
           <span style={{ fontWeight: 800, fontSize: 16, color: C.text_primary }}>{title}</span>
-          <span onClick={onClose} style={{ fontSize: 22, cursor: 'pointer', color: C.text_secondary }}>×</span>
+          <span onClick={onClose} style={{ fontSize: fullscreen ? 20 : 22, cursor: 'pointer', color: C.text_secondary }}>{fullscreen ? '←' : '×'}</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {children}
         </div>
+        {footer && (
+          <div style={{ flexShrink: 0, borderTop: '1px solid '+C.card_border }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
