@@ -286,14 +286,12 @@ export const ParametresPage = ({ user, onLogout }) => {
     setFermeturing(true);
     try {
       await bizMode.fermerEntreprise(motifFermeture.trim());
-      setShowFermerModal(false);
-      setShowFermerPwModal(false);
-      setMotifFermeture('');
-      setFermerPw('');
-      setShowModeEntreprise(false);
+      // Fermeture = suppression definitive et immediate : on purge aussi les donnees locales de cet appareil
+      resetDB();
+      await new Promise(resolve => { const req = indexedDB.deleteDatabase("beautycrm"); req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve; });
+      setTimeout(() => window.location.reload(), 500);
     } catch(e) {
       alert('Erreur : ' + e.message);
-    } finally {
       setFermeturing(false);
     }
   };

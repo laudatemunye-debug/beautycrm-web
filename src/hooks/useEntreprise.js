@@ -387,6 +387,23 @@ export const useEntreprise = () => {
     }
   };
 
+  // Purge definitive (Drive + revocation) suite a une suppression par le support izi360.
+  // A appeler uniquement quand l'utilisateur confirme (clic "Fermer" sur l'ecran "entreprise supprimee").
+  const purgerEntrepriseSupprimee = async () => {
+    const m = await getSetting('entreprise_mode');
+    const adminEm = m === 'admin' ? (await getSetting('email')) : (await getSetting('entreprise_admin_email'));
+    if (!adminEm) return;
+    try {
+      await fetch(IZI360_URL + '/purge-supprimee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: IZI360_SECRET, admin_email: adminEm }),
+      });
+    } catch(_) {
+      // Meme si l'appel reseau echoue, on purge quand meme le local (voir App.jsx)
+    }
+  };
+
   // Synchronise les donnees partagees de l'entreprise via le proxy izi360 (fusion bidirectionnelle)
   const syncEntreprise = async () => {
     const email = adminEmail || await getSetting('entreprise_admin_email');
@@ -489,7 +506,7 @@ export const useEntreprise = () => {
     mode, role, code, codeExpiry, employes, employesRevoques, employesVoles, adminEmail, loading,
     isCodeValid, activerModeAdmin, desactiverMode, connecterDriveEntreprise,
     genererCode, refreshEmployes, refreshEmployesRevoques, refreshEmployesVoles, revoquerEmploye, rejoindreEntreprise, syncEntreprise, checkEmployeStatus, fermerEntreprise, checkSuspension,
-    marquerEmployeVole, verifierCodeVole,
+    marquerEmployeVole, verifierCodeVole, purgerEntrepriseSupprimee,
     permissions,
     isAdmin: role === 'admin',
     isEmploye: mode === 'employe',

@@ -40,6 +40,9 @@ export default function App() {
   const [motifRevocation, setMotifRevocation] = useState('');
   const [entrepriseFermee, setEntrepriseFermee] = useState(false);
   const [suspendue, setSuspendue] = useState(false);
+  const [supprimee, setSupprimee] = useState(false);
+  const [suppressionMotif, setSuppressionMotif] = useState('');
+  const [suppressionContact, setSuppressionContact] = useState(null);
   const [checkingBlock, setCheckingBlock] = useState(true);
   const [suspensionMotif, setSuspensionMotif] = useState('');
   const [suspensionContact, setSuspensionContact] = useState(null);
@@ -53,6 +56,12 @@ export default function App() {
     setCheckingBlock(true);
     Promise.all([
       bizMode.checkSuspension().then((data) => {
+        if (data.blocked && data.reason === 'supprimee') {
+          setSupprimee(true);
+          setSuppressionMotif(data.motif || '');
+          setSuppressionContact(data.contact || null);
+          return;
+        }
         if (data.blocked && data.reason === 'suspendue') {
           setSuspendue(true);
           setSuspensionMotif(data.motif || '');
@@ -106,6 +115,27 @@ export default function App() {
   };
 
   const fermerRevocation = async () => {
+    try {
+      resetDB();
+      await new Promise(resolve => { const req = indexedDB.deleteDatabase("beautycrm"); req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve; });
+      setTimeout(() => window.location.reload(), 300);
+    } catch(_) {
+      window.location.reload();
+    }
+  };
+
+  // Suspension = reversible, on ne touche a AUCUNE donnee locale, on masque juste l'ecran.
+  const fermerSuspension = () => {
+    setSuspendue(false);
+    setSuspensionMotif('');
+    setSuspensionContact(null);
+  };
+
+  // Suppression = definitive et irreversible : purge Drive (backend) puis purge locale complete.
+  const fermerSuppression = async () => {
+    try {
+      await bizMode.purgerEntrepriseSupprimee();
+    } catch(_) {}
     try {
       resetDB();
       await new Promise(resolve => { const req = indexedDB.deleteDatabase("beautycrm"); req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve; });
@@ -169,6 +199,44 @@ export default function App() {
     </div>
   );
 
+  if (supprimee) {
+    const isAdminSideS = suppressionContact?.type === 'support';
+    const whatsappUrlS = suppressionContact?.whatsapp ? `https://wa.me/${suppressionContact.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(isAdminSideS ? 'Bonjour, mon compte entreprise a ete supprime. Pouvez-vous me donner plus d informations ?' : 'Bonjour, mon compte a ete supprime car l entreprise est supprimee. Pouvez-vous me donner plus d informations ?')}` : null;
+    const mailUrlS = isAdminSideS ? `mailto:${suppressionContact.email}` : null;
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 3000, backgroundColor: '#1A1F36', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🗑️</div>
+        <div style={{ color: '#fff', fontWeight: 800, fontSize: 20, marginBottom: 10 }}>
+          {isAdminSideS ? 'Votre entreprise a ete supprimee' : 'Compte supprime'}
+        </div>
+        <div style={{ color: '#A0A8D0', fontSize: 14, marginBottom: suppressionMotif ? 14 : 28, lineHeight: 1.6, maxWidth: 320 }}>
+          {isAdminSideS
+            ? "Votre entreprise a ete supprimee. Contactez l'equipe IZISOFT."
+            : "Compte suspendu"}
+        </div>
+        {suppressionMotif && (
+          <div style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid #3A4166', borderRadius: 10, padding: '10px 14px', marginBottom: 28, maxWidth: 320 }}>
+            <div style={{ color: '#7A83B0', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MOTIF</div>
+            <div style={{ color: '#fff', fontSize: 13, lineHeight: 1.5 }}>{suppressionMotif}</div>
+          </div>
+        )}
+        {whatsappUrlS && (
+          <button onClick={() => window.open(whatsappUrlS, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 12 }}>
+            {isAdminSideS ? "💬 Contacter le support (WhatsApp)" : "💬 Contacter l'entreprise (WhatsApp)"}
+          </button>
+        )}
+        {isAdminSideS && mailUrlS && (
+          <button onClick={() => window.open(mailUrlS, '_blank')} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#fff', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 12 }}>
+            ✉️ Contacter le support (Email)
+          </button>
+        )}
+        <button onClick={fermerSuppression} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#A0A8D0', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+          Fermer
+        </button>
+      </div>
+    );
+  }
+
   if (suspendue) {
     const isAdminSide = suspensionContact?.type === 'support';
     const whatsappUrl = suspensionContact?.whatsapp ? `https://wa.me/${suspensionContact.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(isAdminSide ? 'Bonjour, mon compte entreprise a ete suspendu. Pouvez-vous me donner plus d informations ?' : 'Bonjour, mon compte a ete suspendu car l entreprise est suspendue. Pouvez-vous me donner plus d informations ?')}` : null;
@@ -198,7 +266,7 @@ export default function App() {
             ✉️ Contacter le support (Email)
           </button>
         )}
-        <button onClick={fermerRevocation} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#A0A8D0', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+        <button onClick={fermerSuspension} style={{ width: '100%', maxWidth: 320, backgroundColor: 'transparent', color: '#A0A8D0', border: '1px solid #3A4166', borderRadius: 12, padding: 14, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
           Fermer
         </button>
       </div>
