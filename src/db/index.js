@@ -338,7 +338,7 @@ export const importAllData = async (data) => {
   }
 };
 
-export const resetDB = () => { _db = null; };
+export const resetDB = () => { try { _db?.close(); } catch(_) {} _db = null; };
 
 export const clearAllData = async () => {
   const database = await getDB();
