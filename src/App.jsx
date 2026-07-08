@@ -33,7 +33,7 @@ export default function App() {
   const isOnline = useNetwork();
   useDevise();
   const { annonce, dismiss } = useAnnonces();
-  const { connect: googleConnect, downloadBackup, googleUser: gUser } = useGoogle();
+  const { connect: googleConnect, downloadBackup, googleUser: gUser, disconnect: googleDisconnect } = useGoogle();
   const bizMode = useEntreprise();
   const [revoked, setRevoked] = useState(false);
   const [adminWhatsapp, setAdminWhatsapp] = useState('');
@@ -187,7 +187,7 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <LoginPage key={loginKey} onSuccess={setUser} googleConnect={googleConnect} downloadBackup={downloadBackup} googleUser={gUser} importAllData={importAllData} />;
+  if (!user) return <LoginPage key={loginKey} onSuccess={setUser} googleConnect={googleConnect} downloadBackup={downloadBackup} googleUser={gUser} googleDisconnect={googleDisconnect} importAllData={importAllData} />;
 
   if (checkingBlock) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1F36' }}>

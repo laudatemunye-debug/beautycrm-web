@@ -48,7 +48,7 @@ const StepIndicator = ({ current, total }) => (
   </div>
 );
 
-export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser, importAllData }) => {
+export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser, googleDisconnect, importAllData }) => {
   const [canInstall, setCanInstall] = useState(!!window.__deferredInstallPrompt);
   useEffect(() => {
     const handler = () => setCanInstall(true);
@@ -333,8 +333,14 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <div style={{ fontWeight:700, fontSize:16, color:C.text_primary, marginBottom:8 }}>Restaurer depuis Google Drive</div>
             <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>Connectez votre compte Google pour restaurer vos donnees sur cet appareil.</div>
             {googleUser ? (
-              <div style={{ backgroundColor: "#e8f5e9", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 13, color: "#2e7d32" }}>
-                🟢 {googleUser.name || googleUser.email}
+              <div style={{ backgroundColor: "#e8f5e9", borderRadius: 10, padding: 12, marginBottom: 8, fontSize: 13, color: "#2e7d32", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span>🟢 {googleUser.name || googleUser.email}</span>
+                <span
+                  onClick={async () => { await googleDisconnect(); googleConnect && googleConnect(); }}
+                  style={{ color: C.accent, fontWeight:600, cursor:"pointer", fontSize:12, textDecoration:"underline" }}
+                >
+                  Changer
+                </span>
               </div>
             ) : null}
             <PrimaryBtn label={googleUser ? "Restaurer mes donnees" : "Connecter Google Drive"} onClick={async () => {
