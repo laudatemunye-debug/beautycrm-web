@@ -315,17 +315,20 @@ export const convertirDevise = async (taux) => {
 
 export const exportAllData = async () => {
   const db = await getDB();
-  const [clients, produits, ventes, prospects, rdvs, seminaires, participants, approvisionnements] = await Promise.all(
-    STORES.filter(s => s !== 'settings').map(s => db.getAll(s))
-  );
-  return { clients, produits, ventes, prospects, rdvs, seminaires, participants, approvisionnements, exported_at: nowISO() };
+  const dataTables = STORES.filter(s => s !== 'settings');
+  const results = await Promise.all(dataTables.map(s => db.getAll(s)));
+  const out = {};
+  dataTables.forEach((name, i) => { out[name] = results[i]; });
+  out.settings = await db.getAll('settings');
+  out.exported_at = nowISO();
+  return out;
 };
 
 export const importAllData = async (data) => {
   const db = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit'];
   for (const key of tables) {
-    if (!data[key]) continue;
+    if (!data[key] || !db.objectStoreNames.contains(key)) continue;
     const tx = db.transaction(key, 'readwrite');
     for (const item of data[key]) {
       if (!item._id) continue;
@@ -333,6 +336,14 @@ export const importAllData = async (data) => {
       if (!existing || (item.updated_at && item.updated_at > (existing.updated_at||''))) {
         await tx.store.put(item);
       }
+    }
+    await tx.done;
+  }
+  if (data.settings && Array.isArray(data.settings) && db.objectStoreNames.contains('settings')) {
+    const tx = db.transaction('settings', 'readwrite');
+    for (const item of data.settings) {
+      if (!item._id) continue;
+      await tx.store.put(item);
     }
     await tx.done;
   }

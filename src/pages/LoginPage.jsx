@@ -334,7 +334,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>Connectez votre compte Google pour restaurer vos donnees sur cet appareil.</div>
             {googleUser ? (
               <div style={{ backgroundColor: "#e8f5e9", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 13, color: "#2e7d32" }}>
-                🟢 {googleUser}
+                🟢 {googleUser.name || googleUser.email}
               </div>
             ) : null}
             <PrimaryBtn label={googleUser ? "Restaurer mes donnees" : "Connecter Google Drive"} onClick={async () => {
@@ -343,13 +343,24 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
                 const data = await downloadBackup();
                 if (data) {
                   await importAllData(data);
-                  setMode("login");
+                  window.location.reload();
+                  return;
                 } else {
-                  alert("Aucun backup trouve sur Drive.");
+                  setMode("nobackup");
                 }
               } catch(e) { alert("Erreur : " + e.message); }
             }} style={{ marginBottom:12 }} />
             <GhostBtn label="Retour" onClick={() => setMode("welcome")} />
+          </div>
+        )}
+
+        {mode==="nobackup" && (
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>🔍</div>
+            <div style={{ fontWeight:700, fontSize:16, color:C.text_primary, marginBottom:8 }}>Aucun compte trouve</div>
+            <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>Aucune sauvegarde n'est associee a ce compte Google. Voulez-vous creer un nouveau compte ?</div>
+            <PrimaryBtn label="Creer un compte" onClick={() => { setStep(0); setMode('setup'); }} style={{ marginBottom:12 }} />
+            <GhostBtn label="Annuler" onClick={() => setMode("restore")} />
           </div>
         )}
 
