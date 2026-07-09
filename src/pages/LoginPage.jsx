@@ -370,21 +370,6 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             {step>0 && <GhostBtn label="Retour" onClick={() => { setError(''); setStep(s=>s-1); }} style={{ flex:1 }} />}
             <PrimaryBtn label={checkingEmail ? 'Verification...' : (step===3?'Creer mon compte':'Suivant')} onClick={nextStep} loading={loading || checkingEmail} style={{ flex:2 }} />
           </div>
-          {emailFoundInfo && (
-            <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-              <div style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
-                <div style={{ fontSize:36, marginBottom:10 }}>🏢</div>
-                <div style={{ fontWeight:800, fontSize:16, color:C.text_primary, marginBottom:10 }}>Compte entreprise detecte</div>
-                <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>
-                  Cet email est deja associe a une entreprise en tant qu'{emailFoundInfo.role === 'admin' ? 'administrateur' : 'employe'}.
-                  Vous devez utiliser ce meme compte : vos donnees seront synchronisees automatiquement.
-                </div>
-                {joinAutoError && <div style={{ color:C.danger, fontSize:13, marginBottom:14 }}>{joinAutoError}</div>}
-                <PrimaryBtn label={joinAutoLoading ? 'Connexion...' : 'Continuer avec ce compte'} onClick={confirmerRejoindreExistant} loading={joinAutoLoading} style={{ marginBottom:10 }} />
-                <GhostBtn label="Annuler" onClick={() => setEmailFoundInfo(null)} />
-              </div>
-            </div>
-          )}
           {showPolitique && (
             <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
               <div style={{ backgroundColor:'#fff', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:480, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
@@ -466,6 +451,21 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       <div style={{ marginTop:24, textAlign:'center', color:'rgba(255,255,255,0.6)', fontSize:12, lineHeight:1.8 }}>
         La gestion de ton business devient facile,<br/>tout au meme endroit dans ton smartphone
       </div>
+          {emailFoundInfo && (
+            <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+              <div style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>🏢</div>
+                <div style={{ fontWeight:800, fontSize:16, color:C.text_primary, marginBottom:10 }}>Compte entreprise detecte</div>
+                <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>
+                  Cet email est deja associe a une entreprise en tant qu'{emailFoundInfo.role === 'admin' ? 'administrateur' : 'employe'}.
+                  Vous devez utiliser ce meme compte : vos donnees seront synchronisees automatiquement.
+                </div>
+                {joinAutoError && <div style={{ color:C.danger, fontSize:13, marginBottom:14 }}>{joinAutoError}</div>}
+                <PrimaryBtn label={joinAutoLoading ? 'Connexion...' : 'Continuer avec ce compte'} onClick={confirmerRejoindreExistant} loading={joinAutoLoading} style={{ marginBottom:10 }} />
+                <GhostBtn label="Annuler" onClick={() => setEmailFoundInfo(null)} />
+              </div>
+            </div>
+          )}
     </div>
   );
 };
