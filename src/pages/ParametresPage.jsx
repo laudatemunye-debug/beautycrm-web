@@ -229,8 +229,8 @@ export const ParametresPage = ({ user, onLogout }) => {
     setCreating(true);
     try {
       await setSetting('email', factEntreprise.email.trim());
-      await saveFactureEntreprise();
       await bizMode.activerModeAdmin();
+      await saveFactureEntreprise();
     } catch(e) {
       setCreationError('Erreur : ' + e.message);
     } finally {

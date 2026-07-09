@@ -56,7 +56,7 @@ export const useEntreprise = () => {
       if (!downRes.ok) return;
       const downData = await downRes.json();
       const remote = downData.data;
-      const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
+      const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit'];
 
       if (!remote) {
         await fetch(`${IZI360_URL}/sync`, {
@@ -285,11 +285,11 @@ export const useEntreprise = () => {
   };
 
   // codeSaisi = les 6 chiffres tels que transmis par l'admin (plus besoin de fileId, izi360 gere tout)
-  const rejoindreEntreprise = async (codeSaisi, nomEmploye, posteChoisi) => {
+  const rejoindreEntreprise = async (codeSaisi, nomEmploye, posteChoisi, emailEmploye) => {
     const res = await fetch(`${IZI360_URL}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: IZI360_SECRET, code: codeSaisi, nom: nomEmploye, poste: posteChoisi }),
+      body: JSON.stringify({ secret: IZI360_SECRET, code: codeSaisi, nom: nomEmploye, poste: posteChoisi, email: emailEmploye || '' }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Erreur lors de la connexion');
@@ -299,6 +299,7 @@ export const useEntreprise = () => {
     await setSetting('entreprise_admin_email', data.admin_email);
     await setSetting('entreprise_employe_id', String(data.employe_id));
     await setSetting('entreprise_admin_whatsapp', data.admin_whatsapp || '');
+    if (emailEmploye) await setSetting('email', emailEmploye);
     setMode('employe');
     setRole(posteChoisi);
     setAdminEmail(data.admin_email);
@@ -308,6 +309,23 @@ export const useEntreprise = () => {
       await syncEntreprise();
     } catch (_) {
       // Echec silencieux - l'employe pourra synchroniser manuellement via le bouton Sync
+    }
+  };
+
+  // Verifie si un email est deja associe a une entreprise existante (admin ou employe)
+  const checkEmail = async (emailSaisi) => {
+    if (!emailSaisi) return { found: false };
+    try {
+      const res = await fetch(`${IZI360_URL}/check-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: IZI360_SECRET, email: emailSaisi }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { found: false };
+      return data;
+    } catch (_) {
+      return { found: false };
     }
   };
 
@@ -421,7 +439,7 @@ export const useEntreprise = () => {
     if (!downRes.ok) throw new Error(downData.message || 'Erreur telechargement sync');
 
     const remote = downData.data;
-    const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
+    const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit'];
 
     if (!remote) {
       // Rien sur le serveur - upload direct des donnees locales
@@ -488,7 +506,7 @@ export const useEntreprise = () => {
       const lastSync = await getSetting('entreprise_last_sync');
       if (!lastSync) return true;
       const localData = await exportAllData();
-      const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements'];
+      const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit'];
       for (const table of tables) {
         const items = localData[table] || [];
         for (const item of items) {
@@ -505,7 +523,7 @@ export const useEntreprise = () => {
   return {
     mode, role, code, codeExpiry, employes, employesRevoques, employesVoles, adminEmail, loading,
     isCodeValid, activerModeAdmin, desactiverMode, connecterDriveEntreprise,
-    genererCode, refreshEmployes, refreshEmployesRevoques, refreshEmployesVoles, revoquerEmploye, rejoindreEntreprise, syncEntreprise, checkEmployeStatus, fermerEntreprise, checkSuspension,
+    genererCode, refreshEmployes, refreshEmployesRevoques, refreshEmployesVoles, revoquerEmploye, rejoindreEntreprise, syncEntreprise, checkEmployeStatus, fermerEntreprise, checkSuspension, checkEmail,
     marquerEmployeVole, verifierCodeVole, purgerEntrepriseSupprimee,
     permissions,
     isAdmin: role === 'admin',

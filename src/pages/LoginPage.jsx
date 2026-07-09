@@ -93,6 +93,10 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
   const [resetPw, setResetPw] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
   const [showPolitique, setShowPolitique] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [emailFoundInfo, setEmailFoundInfo] = useState(null);
+  const [joinAutoLoading, setJoinAutoLoading] = useState(false);
+  const [joinAutoError, setJoinAutoError] = useState('');
 
   useEffect(() => {
     getSetting("password").then(p => { if (p) setMode("login"); else setMode("welcome"); }).catch(() => setMode("welcome"));
@@ -118,12 +122,22 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
     finally { setLoading(false); }
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     setError('');
     if (step === 0) {
       if (!setupNom.trim()) { setError('Le nom complet est obligatoire.'); return; }
       if (!telephone.trim()) { setError('Le telephone WhatsApp est obligatoire.'); return; }
       if (!email.trim()) { setError("L'email est obligatoire."); return; }
+      setCheckingEmail(true);
+      try {
+        const info = await bizMode.checkEmail(email.trim());
+        if (info && info.found) {
+          setEmailFoundInfo(info);
+          setCheckingEmail(false);
+          return;
+        }
+      } catch (_) {}
+      setCheckingEmail(false);
     }
     if (step === 1) {
       if (!pays.trim()) { setError('Le pays est obligatoire.'); return; }
@@ -135,6 +149,49 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       if (!role.trim()) { setError('Le role est obligatoire.'); return; }
     }
     if (step === 3) { handleSetup(); return; }
+    setStep(s => s + 1);
+  };
+
+  const confirmerRejoindreExistant = async () => {
+    if (!emailFoundInfo) return;
+    setJoinAutoError('');
+    setJoinAutoLoading(true);
+    try {
+      await clearAllData();
+      await setSetting('username', setupNom.trim());
+      await setSetting('telephone', indicatif + telephone);
+      await setSetting('email', email.trim());
+      if (emailFoundInfo.role === 'admin') {
+        await setSetting('entreprise_mode', 'admin');
+        await setSetting('entreprise_role', 'admin');
+        await setSetting('entreprise_admin_email', email.trim());
+      } else {
+        await setSetting('entreprise_mode', 'employe');
+        await setSetting('entreprise_role', emailFoundInfo.poste || 'vendeur');
+        await setSetting('entreprise_admin_email', emailFoundInfo.admin_email);
+        await setSetting('entreprise_employe_id', String(emailFoundInfo.employe_id || ''));
+      }
+      // Recuperer devise + infos facture depuis le serveur avant de recharger
+      try {
+        if (emailFoundInfo.role === 'admin') {
+          await bizMode.checkSuspension();
+        } else {
+          await bizMode.checkEmployeStatus();
+        }
+      } catch (_) {}
+      // Telecharger les donnees partagees de l'entreprise (clients, credits, produits, ventes...)
+      try {
+        await bizMode.syncEntreprise();
+      } catch (_) {}
+      window.location.reload();
+    } catch (e) {
+      setJoinAutoError(e.message || 'Erreur');
+      setJoinAutoLoading(false);
+    }
+  };
+
+  const ignorerEtContinuer = () => {
+    setEmailFoundInfo(null);
     setStep(s => s + 1);
   };
 
@@ -230,6 +287,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             {joinError && <div style={{ color:C.danger, fontSize:13, marginBottom:10 }}>{joinError}</div>}
             <FieldInput label="Code d'invitation (6 chiffres)" value={codeEntreprise} onChange={v => setCodeEntreprise(v.replace(/\D/g,'').slice(0,6))} placeholder="Ex: 336754" />
             <FieldInput label="Votre nom" value={nomEmploye} onChange={setNomEmploye} placeholder="Ex: Marie" />
+            <FieldInput label="Votre email" value={email} onChange={setEmail} type="email" placeholder="votre@email.com" />
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.text_secondary, fontWeight:600, marginBottom:6 }}>Votre poste</div>
               <select value={posteEmploye} onChange={e => setPosteEmploye(e.target.value)} style={{ width:'100%', padding:13, borderRadius:10, border:'1px solid '+C.input_border, backgroundColor:C.input_bg, fontSize:14, color:C.text_primary, fontFamily:'inherit', boxSizing:'border-box' }}>
@@ -243,7 +301,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
               if (!nomEmploye.trim()) { setJoinError('Entrez votre nom.'); return; }
               setJoinLoading(true);
               try {
-                await bizMode.rejoindreEntreprise(codeEntreprise, nomEmploye.trim(), posteEmploye);
+                await bizMode.rejoindreEntreprise(codeEntreprise, nomEmploye.trim(), posteEmploye, email.trim());
                 await setSetting('username', nomEmploye.trim());
                 onSuccess(nomEmploye.trim());
               } catch(e) { setJoinError(e.message); }
@@ -310,8 +368,23 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
           )}
           <div style={{ display:'flex', gap:10, marginTop:8 }}>
             {step>0 && <GhostBtn label="Retour" onClick={() => { setError(''); setStep(s=>s-1); }} style={{ flex:1 }} />}
-            <PrimaryBtn label={step===3?'Creer mon compte':'Suivant'} onClick={nextStep} loading={loading} style={{ flex:2 }} />
+            <PrimaryBtn label={checkingEmail ? 'Verification...' : (step===3?'Creer mon compte':'Suivant')} onClick={nextStep} loading={loading || checkingEmail} style={{ flex:2 }} />
           </div>
+          {emailFoundInfo && (
+            <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+              <div style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', maxWidth:380, padding:24, textAlign:'center' }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>🏢</div>
+                <div style={{ fontWeight:800, fontSize:16, color:C.text_primary, marginBottom:10 }}>Compte entreprise detecte</div>
+                <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>
+                  Cet email est deja associe a une entreprise en tant qu'{emailFoundInfo.role === 'admin' ? 'administrateur' : 'employe'}.
+                  Vous devez utiliser ce meme compte : vos donnees seront synchronisees automatiquement.
+                </div>
+                {joinAutoError && <div style={{ color:C.danger, fontSize:13, marginBottom:14 }}>{joinAutoError}</div>}
+                <PrimaryBtn label={joinAutoLoading ? 'Connexion...' : 'Continuer avec ce compte'} onClick={confirmerRejoindreExistant} loading={joinAutoLoading} style={{ marginBottom:10 }} />
+                <GhostBtn label="Annuler" onClick={() => setEmailFoundInfo(null)} />
+              </div>
+            </div>
+          )}
           {showPolitique && (
             <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
               <div style={{ backgroundColor:'#fff', borderRadius:'20px 20px 0 0', width:'100%', maxWidth:480, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
@@ -334,7 +407,12 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <div style={{ fontSize:13, color:C.text_secondary, marginBottom:20, lineHeight:1.6 }}>Connectez votre compte Google pour restaurer vos donnees sur cet appareil.</div>
             {googleUser ? (
               <div style={{ backgroundColor: "#e8f5e9", borderRadius: 10, padding: 12, marginBottom: 8, fontSize: 13, color: "#2e7d32", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span>🟢 {googleUser.name || googleUser.email}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {googleUser.picture ? (
+                    <img src={googleUser.picture} alt="" style={{ width:20, height:20, borderRadius:'50%', objectFit:'cover' }} />
+                  ) : '🟢'}
+                  {googleUser.name || googleUser.email}
+                </span>
                 <span
                   onClick={async () => { await googleDisconnect(); googleConnect && googleConnect(); }}
                   style={{ color: C.accent, fontWeight:600, cursor:"pointer", fontSize:12, textDecoration:"underline" }}
@@ -351,6 +429,13 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
                   await importAllData(data);
                   window.location.reload();
                   return;
+                }
+                // Pas de sauvegarde perso : verifier si cet email est deja lie a une entreprise
+                const info = await bizMode.checkEmail(googleUser.email);
+                if (info && info.found) {
+                  setEmail(googleUser.email);
+                  setSetupNom(googleUser.name || googleUser.email);
+                  setEmailFoundInfo(info);
                 } else {
                   setMode("nobackup");
                 }
