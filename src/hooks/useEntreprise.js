@@ -116,6 +116,24 @@ export const useEntreprise = () => {
         body: JSON.stringify({ secret: IZI360_SECRET, admin_email: email, devise: dev }),
       }).catch(() => {});
     }
+    // Pre-remplir la fiche de facturation par defaut avec les infos saisies a la creation du compte
+    if (email) {
+      try {
+        const nomEntreprise = await getSetting('entreprise');
+        const pays = await getSetting('pays');
+        const ville = await getSetting('ville');
+        const telephone = await getSetting('telephone');
+        const adresse = [ville, pays].filter(Boolean).join(', ');
+        await fetch(`${IZI360_URL}/set-facture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret: IZI360_SECRET, admin_email: email,
+            nom: nomEntreprise || '', adresse: adresse || '', telephone: telephone || '', email: email || '', logo: '',
+          }),
+        }).catch(() => {});
+      } catch(_) {}
+    }
   };
 
   const changerDevise = async (deviseValue) => {
@@ -192,10 +210,13 @@ export const useEntreprise = () => {
 
   // Ouvre la connexion Google Drive pour le mode entreprise (necessaire avant de generer un code)
   const connecterDriveEntreprise = async () => {
+    // Ouvrir la fenetre IMMEDIATEMENT (de facon synchrone dans le clic) : iOS Safari bloque
+    // silencieusement window.open() si le moindre await le precede.
+    const popup = window.open('', '_blank');
     const email = await getSetting('email');
-    if (!email) throw new Error('Email non configure - impossible de connecter Drive');
+    if (!email) { popup?.close(); throw new Error('Email non configure - impossible de connecter Drive'); }
     const url = `${IZI360_URL}/oauth-start?admin_email=${encodeURIComponent(email)}`;
-    window.open(url, '_blank');
+    if (popup) { popup.location.href = url; } else { window.open(url, '_blank'); }
 
     return new Promise((resolve) => {
       const handler = (event) => {
