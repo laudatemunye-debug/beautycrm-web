@@ -226,10 +226,12 @@ export const ParametresPage = ({ user, onLogout }) => {
     if (!factEntreprise.telephone.trim()) { setCreationError('Le telephone est requis (utilise pour WhatsApp).'); return; }
     const emailValide = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(factEntreprise.email.trim());
     if (!emailValide) { setCreationError('L\'email de l\'entreprise est invalide ou manquant.'); return; }
+    if (!devise) { setCreationError('La devise est requise.'); return; }
     setCreating(true);
     try {
       await setSetting('email', factEntreprise.email.trim());
-      await bizMode.activerModeAdmin();
+      await setSetting('devise', devise);
+      await bizMode.activerModeAdmin(devise);
       await saveFactureEntreprise();
     } catch(e) {
       setCreationError('Erreur : ' + e.message);
@@ -917,6 +919,7 @@ export const ParametresPage = ({ user, onLogout }) => {
               <FieldInput label="Adresse complete" value={factEntreprise.adresse} onChange={v => setFactEntreprise(f=>({...f,adresse:v}))} placeholder="Ex: 12 Avenue du Commerce, Kinshasa" multiline />
               <FieldInput label="Telephone" value={factEntreprise.telephone} onChange={v => setFactEntreprise(f=>({...f,telephone:v}))} type="tel" />
               <FieldInput label="Email" value={factEntreprise.email} onChange={v => setFactEntreprise(f=>({...f,email:v}))} type="email" />
+              <PickerSelect label="Devise de l'entreprise" value={devise} onChange={setDevise} options={DEVISES.map(d => d.label)} />
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: C.text_secondary, fontWeight: 600, marginBottom: 6 }}>Logo de l'entreprise</div>
                 {factEntreprise.logo && (

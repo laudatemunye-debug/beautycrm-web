@@ -100,7 +100,7 @@ export const useEntreprise = () => {
 
   const isCodeValid = () => code && codeExpiry && Date.now() < codeExpiry;
 
-  const activerModeAdmin = async () => {
+  const activerModeAdmin = async (deviseExplicite) => {
     const email = await getSetting('email');
     await setSetting('entreprise_mode', 'admin');
     await setSetting('entreprise_role', 'admin');
@@ -108,7 +108,7 @@ export const useEntreprise = () => {
     setMode('admin');
     setRole('admin');
     setAdminEmail(email || null);
-    const dev = await getSetting('devise');
+    const dev = deviseExplicite || await getSetting('devise');
     if (dev && email) {
       fetch(`${IZI360_URL}/set-devise`, {
         method: 'POST',
