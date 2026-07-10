@@ -2,136 +2,99 @@ import { useState, useEffect, useRef } from 'react';
 import { setSetting, getSetting, importAllData } from '../db/index';
 import { encryptPayload, decryptPayload } from '../utils/crypto';
 
-const CLIENT_ID = '6659063018-gs71riiatkgkk4gc6nuou23b8rut3a6b.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
 const FILE_NAME = 'beautycrm-backup.json';
 const FILE_NAME_SHARED = 'beautycrm-shared.json';
 const DRIVE_API_KEY = 'AIzaSyDDzkNUvKpN987_Q90hSvhuMoeYpjwU1OQ';
+const IZI360_URL = 'https://izi360-backend.vercel.app/api/beautycrm/entreprise';
+const IZI360_SECRET = 'beautycrm_izi360_2026';
 
-let _tokenClient = null;
+// Nouveau flux : le refresh_token vit cote serveur (table beautycrm_users_drive).
+// Le client ne garde qu'un access_token de courte duree en cache memoire, renouvele
+// automatiquement via le serveur sans jamais redemander de connexion a l'utilisateur.
 let _accessToken = null;
 let _tokenExpiry = 0;
+let _pendingTokenFetch = null;
 
 export const useGoogle = () => {
   const [googleUser, setGoogleUser] = useState(null);
   const [syncing, setSyncing] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const [authReady, setAuthReady] = useState(true);
   const [error, setError] = useState('');
-  const resolvers = useRef([]);
+  const userRef = useRef(null);
 
   useEffect(() => {
     getSetting('google_user').then(raw => {
-      if (raw) try { setGoogleUser(JSON.parse(raw)); } catch(_) {}
+      if (raw) try { const u = JSON.parse(raw); setGoogleUser(u); userRef.current = u; } catch(_) {}
     });
 
-    const existing = document.querySelector('script[src*="accounts.google.com/gsi"]');
-    if (existing) { initClient(); return; }
-
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.onload = initClient;
-    document.head.appendChild(s);
+    const handler = (event) => {
+      if (event.data && event.data.type === 'izi360_personal_drive_connected') {
+        const user = { email: event.data.email, name: event.data.name || event.data.email, picture: event.data.picture || null };
+        setGoogleUser(user);
+        userRef.current = user;
+        setSetting('google_user', JSON.stringify(user));
+        setError('');
+        _accessToken = null; _tokenExpiry = 0;
+        fetchServerToken(user.email).catch(() => {});
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
   }, []);
 
-  const initClient = () => {
-    if (!window.google?.accounts?.oauth2) return;
-    _tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: onToken,
-    });
-    setAuthReady(true);
-  };
-
-  const onToken = async (resp) => {
-    if (resp.error) {
-      if (resp.error !== 'interaction_required' && resp.error !== 'access_denied') {
-        setError('Erreur: ' + resp.error);
+  const fetchServerToken = async (email) => {
+    if (_pendingTokenFetch) return _pendingTokenFetch;
+    _pendingTokenFetch = (async () => {
+      try {
+        const res = await fetch(`${IZI360_URL}/drive-token-personal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret: IZI360_SECRET, email }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.access_token) throw new Error(data.message || 'Token indisponible');
+        _accessToken = data.access_token;
+        _tokenExpiry = Date.now() + 50 * 60 * 1000;
+        return true;
+      } catch (e) {
+        _accessToken = null; _tokenExpiry = 0;
+        throw e;
+      } finally {
+        _pendingTokenFetch = null;
       }
-      resolvers.current.forEach(r => r(false));
-      resolvers.current = [];
-      return;
-    }
-
-    _accessToken = resp.access_token;
-    _tokenExpiry = Date.now() + (resp.expires_in - 120) * 1000;
-    window.__gtoken = resp.access_token;
-    window.__gexpiry = _tokenExpiry;
-
-    resolvers.current.forEach(r => r(true));
-    resolvers.current = [];
-
-    setTimeout(silentRefresh, (resp.expires_in - 180) * 1000);
-
-    try {
-      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${resp.access_token}` },
-      });
-      const info = await res.json();
-      if (info.email) {
-        const user = { email: info.email, name: info.name || info.email, picture: info.picture || null };
-        setGoogleUser(user);
-        await setSetting('google_user', JSON.stringify(user));
-        setError('');
-      } else {
-        setError('Email non recu: ' + JSON.stringify(info));
-      }
-    } catch(e) {
-      setError('Erreur profil: ' + e.message);
-    }
+    })();
+    return _pendingTokenFetch;
   };
 
-  const silentRefresh = () => {
-    if (!_tokenClient) return;
-    try {
-      _tokenClient.callback = onToken;
-      _tokenClient.requestAccessToken({ prompt: 'none' });
-    } catch(_) {}
+  const ensureToken = async () => {
+    if (_accessToken && Date.now() < _tokenExpiry) return true;
+    const email = userRef.current?.email;
+    if (!email) throw new Error('SESSION_EXPIRED');
+    await fetchServerToken(email);
+    return true;
   };
-
-  const getToken = () => {
-    if (_accessToken && Date.now() < _tokenExpiry) return Promise.resolve(true);
-    return Promise.resolve(false);
-  };
-
-  const refreshToken = () => new Promise(resolve => {
-    if (!_tokenClient) { resolve(false); return; }
-    resolvers.current.push(resolve);
-    if (resolvers.current.length === 1) {
-      _tokenClient.callback = (resp) => {
-        if (resp.error) {
-          resolvers.current.forEach(r => r(false));
-          resolvers.current = [];
-          return;
-        }
-        _accessToken = resp.access_token;
-        _tokenExpiry = Date.now() + (resp.expires_in - 120) * 1000;
-        resolvers.current.forEach(r => r(true));
-        resolvers.current = [];
-      };
-      _tokenClient.requestAccessToken({ prompt: 'select_account' });
-    }
-  });
 
   const connect = () => {
     setError('');
-    if (!_tokenClient) { setError('Non pret, reessayez.'); return; }
-    _tokenClient.callback = onToken;
-    _tokenClient.requestAccessToken({ prompt: 'select_account' });
+    const popup = window.open(`${IZI360_URL}/oauth-start-personal`, '_blank');
+    if (!popup) { setError('Fenetre bloquee, autorisez les popups et reessayez.'); return; }
   };
 
   const disconnect = async () => {
-    if (_accessToken) window.google?.accounts.oauth2.revoke(_accessToken, () => {});
     _accessToken = null;
     _tokenExpiry = 0;
     setGoogleUser(null);
+    userRef.current = null;
     setError('');
     await setSetting('google_user', '');
   };
 
   const authFetch = async (url, opts = {}) => {
-    if (!_accessToken) throw new Error('SESSION_EXPIRED');
+    try {
+      await ensureToken();
+    } catch (_) {
+      throw new Error('SESSION_EXPIRED');
+    }
     return fetch(url, { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${_accessToken}` } });
   };
 
