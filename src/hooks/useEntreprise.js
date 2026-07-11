@@ -426,6 +426,39 @@ export const useEntreprise = () => {
     }
   };
 
+  // Verifie si le compte PERSONNEL (hors entreprise) a ete suspendu/supprime par le support izi360
+  const checkStatutPersonnel = async () => {
+    const email = await getSetting('email');
+    if (!email) return { blocked: false };
+    try {
+      const res = await fetch(`${IZI360_URL}/status-personal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: IZI360_SECRET, email }),
+      });
+      if (!res.ok) return { blocked: false };
+      return await res.json();
+    } catch(_) {
+      return { blocked: false };
+    }
+  };
+
+  // Purge definitive du compte personnel (Drive + BDD) suite a une suppression par le support izi360.
+  // A appeler uniquement quand l'utilisateur confirme (clic "Fermer" sur l'ecran "compte supprime").
+  const purgerCompteSupprime = async () => {
+    const email = await getSetting('email');
+    if (!email) return;
+    try {
+      await fetch(`${IZI360_URL}/purge-personal-supprime`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: IZI360_SECRET, email }),
+      });
+    } catch(_) {
+      // Meme si l'appel reseau echoue, on purge quand meme le local (voir App.jsx)
+    }
+  };
+
   // Purge definitive (Drive + revocation) suite a une suppression par le support izi360.
   // A appeler uniquement quand l'utilisateur confirme (clic "Fermer" sur l'ecran "entreprise supprimee").
   const purgerEntrepriseSupprimee = async () => {
@@ -544,6 +577,7 @@ export const useEntreprise = () => {
   return {
     mode, role, code, codeExpiry, employes, employesRevoques, employesVoles, adminEmail, loading,
     isCodeValid, activerModeAdmin, desactiverMode, connecterDriveEntreprise,
+    checkStatutPersonnel, purgerCompteSupprime,
     genererCode, refreshEmployes, refreshEmployesRevoques, refreshEmployesVoles, revoquerEmploye, rejoindreEntreprise, syncEntreprise, checkEmployeStatus, fermerEntreprise, checkSuspension, checkEmail,
     marquerEmployeVole, verifierCodeVole, purgerEntrepriseSupprimee,
     permissions,
