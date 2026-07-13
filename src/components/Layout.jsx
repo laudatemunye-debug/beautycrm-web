@@ -55,6 +55,8 @@ export const PAGE_TITLES = {
 };
 
 const Drawer = ({ open, onClose, onNavigate, active, user }) => {
+  const { mode: bizModeVal } = useEntreprise();
+  const isEntrepriseMode = !!bizModeVal;
 
   const drawerRef = useRef(null);
   const [showParrain, setShowParrain] = useState(false);
