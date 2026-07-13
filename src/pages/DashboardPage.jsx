@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { C } from '../theme';
-import { getClients, getVentes, getProspects, getRdvs, getSeminaires, getCredits, today } from '../db/index';
+import { getClients, getVentes, getProspects, getRdvs, getSeminaires, getCredits, getCompteResultat, getMasseSalariale, migrerVentesVersEcritures, initPlanComptableDefaut, today } from '../db/index';
 import { KpiCard, Card, SectionTitle, fmtMoney, fmtDate, Badge, getDeviseSymbol } from "../components/UI";
 import { useDevise } from "../hooks/useDevise";
 import { useEntreprise } from "../hooks/useEntreprise";
@@ -21,10 +21,21 @@ export const DashboardPage = ({ onNavigate }) => {
   const [syncingHome, setSyncingHome] = useState(false);
   const [syncMsgHome, setSyncMsgHome] = useState('');
   const [pendingSync, setPendingSync] = useState(false);
+  const [kpiCompta, setKpiCompta] = useState(null);
 
   useEffect(() => {
     if (bizMode.mode === 'admin' || bizMode.mode === 'employe') {
       bizMode.checkPendingSync().then(setPendingSync);
+    }
+    if (bizMode.mode === 'admin') {
+      const now = new Date();
+      const debut = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const fin = now.toISOString().split('T')[0];
+      initPlanComptableDefaut()
+        .then(() => migrerVentesVersEcritures())
+        .then(() => Promise.all([getCompteResultat(debut, fin), getMasseSalariale(debut, fin)]))
+        .then(([res, masse]) => setKpiCompta({ res, masse }))
+        .catch(() => {});
     }
   }, [bizMode.mode]);
 
@@ -240,6 +251,32 @@ export const DashboardPage = ({ onNavigate }) => {
           ))
         }
       </Card>
+
+      {bizMode.mode === 'admin' && kpiCompta && (
+        <Card style={{ marginBottom: 14 }}>
+          <SectionTitle title="Comptabilité ce mois" action="Voir tout" onAction={() => onNavigate('comptabilite')} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginTop: 8 }}>
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{ fontSize: 11, color: C.text_secondary, marginBottom: 4 }}>Produits</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: C.success }}>{fmtMoney(kpiCompta.res.total_produits, devise)}</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{ fontSize: 11, color: C.text_secondary, marginBottom: 4 }}>Charges</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: C.danger }}>{fmtMoney(kpiCompta.res.total_charges, devise)}</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{ fontSize: 11, color: C.text_secondary, marginBottom: 4 }}>{kpiCompta.res.resultat >= 0 ? 'Bénéfice' : 'Perte'}</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: kpiCompta.res.resultat >= 0 ? C.success : C.danger }}>{fmtMoney(kpiCompta.res.resultat, devise)}</div>
+            </div>
+          </div>
+          {kpiCompta.masse.nb_bulletins > 0 && (
+            <div style={{ borderTop: `1px solid ${C.card_border}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.text_secondary }}>
+              <span>Masse salariale</span>
+              <span style={{ fontWeight: 700, color: C.text_primary }}>{fmtMoney(kpiCompta.masse.total_net, devise)} ({kpiCompta.masse.nb_bulletins} bulletins)</span>
+            </div>
+          )}
+        </Card>
+      )}
 
       {(bizMode.mode === 'admin' || bizMode.mode === 'employe') && (
         <>

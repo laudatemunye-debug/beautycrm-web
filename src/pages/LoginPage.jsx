@@ -290,7 +290,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
             <FieldInput label="Votre email" value={email} onChange={setEmail} type="email" placeholder="votre@email.com" />
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.text_secondary, fontWeight:600, marginBottom:6 }}>Votre poste</div>
-              <select value={posteEmploye} onChange={e => setPosteEmploye(e.target.value)} style={{ width:'100%', padding:13, borderRadius:10, border:'1px solid '+C.input_border, backgroundColor:C.input_bg, fontSize:14, color:C.text_primary, fontFamily:'inherit', boxSizing:'border-box' }}>
+              <select value={posteEmploye} onChange={e => setPosteEmploye(e.target.value)} style={{ display:'none' }}>
                 <option value="vendeur">Vendeur</option>
                 <option value="gestionnaire">Gestionnaire</option>
               </select>

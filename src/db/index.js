@@ -1,8 +1,8 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'beautycrm';
-const DB_VERSION = 7;
-const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits','factures','factures_credit'];
+const DB_VERSION = 8;
+const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits','factures','factures_credit','plan_comptable','ecritures','charges','employes','bulletins_paie','periodes_comptables','audit_log'];
 
 let _db = null;
 const getDB = async () => {
@@ -95,8 +95,33 @@ export const getProduits = async () => {
   return all.sort((a,b) => a.nom.localeCompare(b.nom));
 };
 export const saveProduit = async (data) => {
+  const isNew = !data._id;
   if (!data._id) data._id = generateId();
+  const db = await getDB();
+  // Récupérer l'ancien stock si mise à jour
+  const ancien = isNew ? null : await db.get('produits', data._id);
   await putDoc('produits', data);
+  // Si stock initial à la création ou augmentation de stock → appro auto
+  // _skipAppro évite la boucle infinie quand saveProduit est appelé depuis saveApprovisionnement
+  if (!data._skipAppro) {
+    try {
+      const mode = await getSetting('entreprise_mode');
+      if (mode === 'admin' || mode === 'employe') {
+        const ancienStock = ancien?.stock || 0;
+        const nouveauStock = data.stock || 0;
+        const diff = nouveauStock - ancienStock;
+        if (diff > 0 && data.prix_achat) {
+          await saveApprovisionnement({
+            produit: data.nom,
+            quantite: diff,
+            prix_achat: data.prix_achat,
+            date: today(),
+            notes: isNew ? 'Stock initial' : 'Mise à jour stock',
+          });
+        }
+      }
+    } catch(_) {}
+  }
 };
 export const deleteProduit = (id) => softDelete('produits', id);
 
@@ -141,14 +166,14 @@ export const adjustStock = async (nom, delta) => {
   const p = await getProduitByNom(nom);
   if (!p || p.stock == null) return;
   const nouveauStock = Math.max(0, (p.stock || 0) + delta);
-  await saveProduit({ ...p, stock: nouveauStock });
+  await saveProduit({ ...p, stock: nouveauStock, _skipAppro: true });
 };
 
 export const addStock = async (nom, qte) => {
   const p = await getProduitByNom(nom);
   if (!p) return;
   const nouveauStock = (p.stock || 0) + qte;
-  await saveProduit({ ...p, stock: nouveauStock });
+  await saveProduit({ ...p, stock: nouveauStock, _skipAppro: true });
 };
 
 export const getTendances = async (jours = 30) => {
@@ -171,6 +196,35 @@ export const getApprovisionnements = async () => {
 export const saveApprovisionnement = async (data) => {
   if (!data._id) data._id = generateId();
   await putDoc('approvisionnements', { ...data, created_at: nowISO() });
+  // Écriture comptable auto : débit 601 Achats / crédit 571 Caisse
+  try {
+    const mode = await getSetting('entreprise_mode');
+    if ((mode === 'admin' || mode === 'employe') && data.prix_achat && data.quantite) {
+      await initPlanComptableDefaut();
+      const db = await getDB();
+      const plan = await db.getAll('plan_comptable');
+      const compteAchats = plan.find(c => c.code === '601');
+      const compteCaisse = plan.find(c => c.code === '571');
+      if (compteAchats && compteCaisse) {
+        const montant = parseFloat(data.prix_achat) * (parseInt(data.quantite) || 1);
+        const existing = await db.getAll('ecritures');
+        const dejaCree = existing.find(e => e.source_type === 'appro' && e.source_id === data._id);
+        if (!dejaCree && montant > 0) {
+          await db.put('ecritures', {
+            _id: generateId(),
+            date: data.date || today(),
+            compte_debit: compteAchats._id,
+            compte_credit: compteCaisse._id,
+            montant,
+            libelle: `Appro ${data.produit || ''} x${data.quantite}`,
+            source_type: 'appro',
+            source_id: data._id,
+            created_at: nowISO(),
+          });
+        }
+      }
+    }
+  } catch(_) {}
 };
 
 // VENTES
@@ -181,6 +235,37 @@ export const getVentes = async () => {
 export const saveVente = async (data) => {
   if (!data._id) data._id = generateId();
   await putDoc('ventes', data);
+  // Phase 3 : génération auto écriture comptable si mode entreprise
+  try {
+    const mode = await getSetting('entreprise_mode');
+    if (mode === 'admin' || mode === 'employe') {
+      await initPlanComptableDefaut();
+      const plan = await (await getDB()).getAll('plan_comptable');
+      const compteCaisse = plan.find(c => c.code === '571');
+      const compteVentes = plan.find(c => c.code === '701');
+      if (compteCaisse && compteVentes && data.prix_vente && !data._ecriture_faite) {
+        const db = await getDB();
+        const existing = await db.getAll('ecritures');
+        const dejaCree = existing.find(e => e.source_type === 'vente' && e.source_id === data._id);
+        if (!dejaCree) {
+          const qte = parseInt(data.quantite) || 1;
+          const pv = parseFloat(data.prix_vente) * qte;
+          await db.put('ecritures', {
+            _id: generateId(),
+            date: data.date_vente || today(),
+            compte_debit: compteCaisse._id,
+            compte_credit: compteVentes._id,
+            montant: pv,
+            libelle: `Vente ${data.produit || ''} - ${data.client_id || ''}`,
+            source_type: 'vente',
+            source_id: data._id,
+            created_at: nowISO(),
+          });
+          // Coût achat enregistré à l'appro uniquement
+        }
+      }
+    }
+  } catch(_) {}
 };
 
 // PROSPECTS
@@ -326,7 +411,7 @@ export const exportAllData = async () => {
 
 export const importAllData = async (data) => {
   const db = await getDB();
-  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit'];
+  const tables = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','approvisionnements','credits','factures','factures_credit','plan_comptable','ecritures','charges','employes','bulletins_paie','periodes_comptables','audit_log'];
   for (const key of tables) {
     if (!data[key] || !db.objectStoreNames.contains(key)) continue;
     const tx = db.transaction(key, 'readwrite');
@@ -349,6 +434,122 @@ export const importAllData = async (data) => {
   }
 };
 
+export const migrerVentesVersEcritures = async () => {
+  const deja = await getSetting('migration_ecritures_v1');
+  if (deja === 'done') return;
+  try {
+    await initPlanComptableDefaut();
+    const db = await getDB();
+    const plan = await db.getAll('plan_comptable');
+    const compteCaisse = plan.find(c => c.code === '571');
+    const compteVentes = plan.find(c => c.code === '701');
+    if (!compteCaisse || !compteVentes) return;
+    const ventes = await db.getAll('ventes');
+    const ecrituresExist = await db.getAll('ecritures');
+    for (const v of ventes) {
+      if (!v.prix_vente || v.deleted_at) continue;
+      const dejaCree = ecrituresExist.find(e => e.source_type === 'vente' && e.source_id === v._id);
+      if (dejaCree) continue;
+      const qteM = parseInt(v.quantite) || 1;
+      const pvM = parseFloat(v.prix_vente) * qteM;
+      const paM = parseFloat(v.prix_achat || 0) * qteM;
+      const compteAchatsM = plan.find(c => c.code === '601');
+      await db.put('ecritures', {
+        _id: generateId(),
+        date: v.date_vente || today(),
+        compte_debit: compteCaisse._id,
+        compte_credit: compteVentes._id,
+        montant: pvM,
+        libelle: `Vente ${v.produit || ''} - migration`,
+        source_type: 'vente',
+        source_id: v._id,
+        created_at: nowISO(),
+      });
+      // Coût achat enregistré à l'appro uniquement
+    }
+    // Dédupliquer les écritures de vente
+    const ecrituresFin = await db.getAll('ecritures');
+    const vuesIds = new Set();
+    for (const e of ecrituresFin) {
+      if (e.source_type === 'vente' && e.source_id) {
+        if (vuesIds.has(e.source_id)) {
+          await db.delete('ecritures', e._id);
+        } else {
+          vuesIds.add(e.source_id);
+        }
+      }
+    }
+    // Migrer aussi les approvisionnements existants
+    const appros = await db.getAll('approvisionnements');
+    const plan2 = await db.getAll('plan_comptable');
+    const compteAchatsM2 = plan2.find(c => c.code === '601');
+    const compteCaisseM2 = plan2.find(c => c.code === '571');
+    if (compteAchatsM2 && compteCaisseM2) {
+      for (const a of appros) {
+        if (!a.prix_achat || !a.quantite || a.deleted_at) continue;
+        const dejaA = ecrituresFin.find(e => e.source_type === 'appro' && e.source_id === a._id);
+        if (dejaA) continue;
+        const montantA = parseFloat(a.prix_achat) * (parseInt(a.quantite) || 1);
+        if (montantA <= 0) continue;
+        await db.put('ecritures', {
+          _id: generateId(),
+          date: a.date || today(),
+          compte_debit: compteAchatsM2._id,
+          compte_credit: compteCaisseM2._id,
+          montant: montantA,
+          libelle: `Appro ${a.produit || ''} x${a.quantite} - migration`,
+          source_type: 'appro',
+          source_id: a._id,
+          created_at: nowISO(),
+        });
+      }
+    }
+    // Migrer les produits existants → appros si pas encore fait
+    const produits = await db.getAll('produits');
+    const approsExist = await db.getAll('approvisionnements');
+    for (const p of produits) {
+      if (!p.stock || !p.prix_achat || p.deleted_at) continue;
+      const dejaAppro = approsExist.find(a => a.source_produit_id === p._id && a.notes === 'Stock initial - migration');
+      if (dejaAppro) continue;
+      const appro = {
+        _id: generateId(),
+        produit: p.nom,
+        quantite: p.stock,
+        prix_achat: p.prix_achat,
+        date: p.created_at?.split('T')[0] || today(),
+        notes: 'Stock initial - migration',
+        source_produit_id: p._id,
+        updated_at: nowISO(),
+      };
+      await db.put('approvisionnements', appro);
+      // Écriture comptable
+      const planF = await db.getAll('plan_comptable');
+      const compteAchatsF = planF.find(c => c.code === '601');
+      const compteCaisseF = planF.find(c => c.code === '571');
+      if (compteAchatsF && compteCaisseF) {
+        const montantF = parseFloat(p.prix_achat) * parseInt(p.stock);
+        if (montantF > 0) {
+          const ecritExist = ecrituresFin.find(e => e.source_type === 'appro' && e.source_id === appro._id);
+          if (!ecritExist) {
+            await db.put('ecritures', {
+              _id: generateId(),
+              date: appro.date,
+              compte_debit: compteAchatsF._id,
+              compte_credit: compteCaisseF._id,
+              montant: montantF,
+              libelle: `Stock initial ${p.nom} x${p.stock} - migration`,
+              source_type: 'appro',
+              source_id: appro._id,
+              created_at: nowISO(),
+            });
+          }
+        }
+      }
+    }
+    await setSetting('migration_ecritures_v1', 'done');
+  } catch(_) {}
+};
+
 export const resetDB = () => { try { _db?.close(); } catch(_) {} _db = null; };
 
 export const clearAllData = async () => {
@@ -365,6 +566,255 @@ export const clearAllData = async () => {
     await settingsTx.store.clear();
     await settingsTx.done;
   }
+};
+
+
+// ============================================================
+// MODE ENTREPRISE : COMPTABILITE + PAIE (IndexedDB local)
+// ============================================================
+
+export const getPlanComptable = async () => {
+  const db = await getDB();
+  const all = await db.getAll('plan_comptable');
+  return all.filter(d => !d.deleted_at).sort((a,b) => a.code.localeCompare(b.code));
+};
+export const savePlanComptable = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('plan_comptable', { ...data, updated_at: nowISO() });
+};
+export const initPlanComptableDefaut = async () => {
+  const existing = await getPlanComptable();
+  if (existing.length > 0) return;
+  const comptes = [
+    { code: '101', libelle: 'Capital', type: 'capitaux' },
+    { code: '401', libelle: 'Fournisseurs', type: 'passif' },
+    { code: '411', libelle: 'Clients', type: 'actif' },
+    { code: '512', libelle: 'Banque', type: 'actif' },
+    { code: '571', libelle: 'Caisse', type: 'actif' },
+    { code: '601', libelle: 'Achats de marchandises', type: 'charge' },
+    { code: '613', libelle: 'Loyer', type: 'charge' },
+    { code: '624', libelle: 'Transport', type: 'charge' },
+    { code: '641', libelle: 'Salaires', type: 'charge' },
+    { code: '645', libelle: 'Charges sociales', type: 'charge' },
+    { code: '701', libelle: 'Ventes de marchandises', type: 'produit' },
+  ];
+  for (const c of comptes) await savePlanComptable(c);
+};
+
+export const getEcritures = async (debut = null, fin = null) => {
+  const db = await getDB();
+  const all = await db.getAll('ecritures');
+  return all
+    .filter(e => (!debut || e.date >= debut) && (!fin || e.date <= fin))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
+export const saveEcriture = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  // Vérifier si la date tombe dans une période clôturée
+  if (data.date && data.source_type === 'manuelle') {
+    const periodes = await db.getAll('periodes_comptables');
+    const bloquee = periodes.find(p =>
+      p.cloturee && data.date >= p.date_debut && data.date <= p.date_fin
+    );
+    if (bloquee) throw new Error(`Période clôturée du ${bloquee.date_debut} au ${bloquee.date_fin} — écriture impossible`);
+  }
+  await db.put('ecritures', { ...data, created_at: data.created_at || nowISO() });
+  if (data.source_type === 'manuelle') await addAudit('create', 'ecriture', data._id);
+};
+export const annulerEcriture = async (id) => {
+  const db = await getDB();
+  const orig = await db.get('ecritures', id);
+  if (!orig) return;
+  const annulation = {
+    _id: generateId(),
+    date: today(),
+    compte_debit: orig.compte_credit,
+    compte_credit: orig.compte_debit,
+    montant: orig.montant,
+    libelle: `Annulation: ${orig.libelle}`,
+    source_type: 'annulation',
+    source_id: orig._id,
+    created_at: nowISO(),
+  };
+  await db.put('ecritures', annulation);
+  await db.put('ecritures', { ...orig, annule_par: annulation._id });
+  return annulation;
+};
+export const ecritureDepuisVente = async (vente, compteVenteId, compteCaisseId) => {
+  await saveEcriture({
+    date: vente.date_vente || today(),
+    compte_debit: compteCaisseId,
+    compte_credit: compteVenteId,
+    montant: vente.prix_vente,
+    libelle: `Vente ${vente.produit} - ${vente.client_id || ''}`,
+    source_type: 'vente',
+    source_id: vente._id,
+  });
+};
+
+export const getCharges = async (debut = null, fin = null) => {
+  const db = await getDB();
+  const all = await db.getAll('charges');
+  return all
+    .filter(c => !c.deleted_at && (!debut || c.date >= debut) && (!fin || c.date <= fin))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
+export const saveCharge = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('charges', { ...data, created_at: data.created_at || nowISO() });
+  await addAudit('create', 'charge', data._id);
+  if (data.compte_charge_id && data.compte_paiement_id) {
+    await saveEcriture({
+      date: data.date,
+      compte_debit: data.compte_charge_id,
+      compte_credit: data.compte_paiement_id,
+      montant: data.montant,
+      libelle: data.libelle,
+      source_type: 'charge',
+      source_id: data._id,
+    });
+  }
+};
+
+export const getEmployes = async () => {
+  const db = await getDB();
+  const all = await db.getAll('employes');
+  return all.filter(e => !e.deleted_at && e.actif !== false).sort((a, b) => a.nom.localeCompare(b.nom));
+};
+export const saveEmploye = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('employes', { ...data, updated_at: nowISO() });
+};
+export const deleteEmploye = async (id) => {
+  const db = await getDB();
+  const doc = await db.get('employes', id);
+  if (doc) await db.put('employes', { ...doc, actif: false, updated_at: nowISO() });
+};
+
+export const getBulletins = async (employeId = null) => {
+  const db = await getDB();
+  const all = await db.getAll('bulletins_paie');
+  return all
+    .filter(b => !employeId || b.employe_id === employeId)
+    .sort((a, b) => b.periode_debut.localeCompare(a.periode_debut));
+};
+export const saveBulletin = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  const employe = await db.get('employes', data.employe_id);
+  if (!employe) throw new Error('Employé introuvable');
+  const brut = (parseFloat(employe.salaire_base) || 0) + (parseFloat(data.primes) || 0);
+  const net = brut - (parseFloat(data.retenues) || 0);
+
+  // Vérifier double paiement période
+  const tousLesBulletins = await db.getAll('bulletins_paie');
+  const bulletinsPeriode = tousLesBulletins.filter(b =>
+    b.employe_id === data.employe_id &&
+    b.periode_debut === data.periode_debut &&
+    b.periode_fin === data.periode_fin &&
+    b._id !== data._id
+  );
+  const dejaPaye = bulletinsPeriode.reduce((s, b) => s + (parseFloat(b.salaire_net) || 0), 0);
+  const salaireDu = parseFloat(employe.salaire_base) || 0;
+  if (dejaPaye >= salaireDu) {
+    throw new Error(`${employe.nom} a déjà été payé(e) intégralement pour cette période (${dejaPaye} déjà versé sur ${salaireDu} dû)`);
+  }
+
+  // Vérifier solde suffisant
+  if (data.compte_paiement_id) {
+    const ecritures = await db.getAll('ecritures');
+    const soldeCompte = ecritures.reduce((s, e) => {
+      if (e.compte_debit === data.compte_paiement_id) return s - (e.montant || 0);
+      if (e.compte_credit === data.compte_paiement_id) return s + (e.montant || 0);
+      return s;
+    }, 0);
+    if (soldeCompte <= 0) throw new Error(`Solde insuffisant — compte de paiement vide (solde: ${Math.round(soldeCompte)})`);
+    if (soldeCompte < net) throw new Error(`Solde insuffisant — solde disponible: ${Math.round(soldeCompte)}, salaire net: ${Math.round(net)}`);
+  }
+
+  const bulletin = { ...data, salaire_brut: brut, salaire_net: net, valide: true, valide_at: nowISO(), created_at: data.created_at || nowISO() };
+  await db.put('bulletins_paie', bulletin);
+
+  if (data.compte_salaire_id && data.compte_paiement_id) {
+    await saveEcriture({
+      date: today(),
+      compte_debit: data.compte_salaire_id,
+      compte_credit: data.compte_paiement_id,
+      montant: net,
+      libelle: `Salaire ${employe.nom} - ${data.periode_debut} au ${data.periode_fin}`,
+      source_type: 'paie',
+      source_id: bulletin._id,
+    });
+  }
+  return bulletin;
+};
+
+export const getPeriodes = async () => {
+  const db = await getDB();
+  const all = await db.getAll('periodes_comptables');
+  return all.sort((a, b) => b.date_debut.localeCompare(a.date_debut));
+};
+export const savePeriode = async (data) => {
+  if (!data._id) data._id = generateId();
+  const db = await getDB();
+  await db.put('periodes_comptables', { ...data, updated_at: nowISO() });
+};
+export const cloturerPeriode = async (id) => {
+  const db = await getDB();
+  const p = await db.get('periodes_comptables', id);
+  if (!p) return;
+  await db.put('periodes_comptables', { ...p, cloturee: true, cloturee_at: nowISO() });
+};
+
+export const getBalance = async (debut = null, fin = null) => {
+  const plan = await getPlanComptable();
+  const ecritures = await getEcritures(debut, fin);
+  return plan.map(compte => {
+    const debit = ecritures.filter(e => e.compte_debit === compte._id).reduce((s,e) => s+(e.montant||0), 0);
+    const credit = ecritures.filter(e => e.compte_credit === compte._id).reduce((s,e) => s+(e.montant||0), 0);
+    return { ...compte, total_debit: debit, total_credit: credit, solde: debit - credit };
+  });
+};
+export const getCompteResultat = async (debut = null, fin = null) => {
+  const balance = await getBalance(debut, fin);
+  const charges = balance.filter(c => c.type === 'charge');
+  const produits = balance.filter(c => c.type === 'produit');
+  const total_charges = charges.reduce((s,c) => s+c.total_debit, 0);
+  const total_produits = produits.reduce((s,c) => s+c.total_credit, 0);
+  return { charges, produits, total_charges, total_produits, resultat: total_produits - total_charges };
+};
+export const getAuditLog = async () => {
+  const db = await getDB();
+  const all = await db.getAll('audit_log');
+  return all.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+};
+
+export const addAudit = async (action, entite, entiteId = null) => {
+  const db = await getDB();
+  await db.put('audit_log', {
+    _id: generateId(),
+    action,
+    entite,
+    entite_id: entiteId,
+    user_id: await getSetting('username') || 'admin',
+    created_at: nowISO(),
+  });
+};
+
+export const getMasseSalariale = async (debut = null, fin = null) => {
+  const bulletins = await getBulletins();
+  const filtered = bulletins.filter(b => (!debut || b.periode_debut >= debut) && (!fin || b.periode_fin <= fin));
+  return {
+    nb_bulletins: filtered.length,
+    total_brut: filtered.reduce((s,b) => s+(b.salaire_brut||0), 0),
+    total_primes: filtered.reduce((s,b) => s+(b.primes||0), 0),
+    total_retenues: filtered.reduce((s,b) => s+(b.retenues||0), 0),
+    total_net: filtered.reduce((s,b) => s+(b.salaire_net||0), 0),
+  };
 };
 
 export const getDeviseSymbolSync = () => {

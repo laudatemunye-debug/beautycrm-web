@@ -230,7 +230,7 @@ export const useEntreprise = () => {
     });
   };
 
-  const genererCode = async () => {
+  const genererCode = async (poste = 'vendeur') => {
     const email = await getSetting('email');
     if (!email) throw new Error('Email admin introuvable');
     const telephoneEntreprise = await getSetting('facture_entreprise_telephone');
@@ -238,7 +238,7 @@ export const useEntreprise = () => {
     const res = await fetch(`${IZI360_URL}/generate-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: IZI360_SECRET, admin_email: email, admin_whatsapp: telephoneEntreprise || '' }),
+      body: JSON.stringify({ secret: IZI360_SECRET, admin_email: email, admin_whatsapp: telephoneEntreprise || '' , poste }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Erreur lors de la generation du code');
@@ -310,19 +310,20 @@ export const useEntreprise = () => {
     const res = await fetch(`${IZI360_URL}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: IZI360_SECRET, code: codeSaisi, nom: nomEmploye, poste: posteChoisi, email: emailEmploye || '' }),
+      body: JSON.stringify({ secret: IZI360_SECRET, code: codeSaisi, nom: nomEmploye, email: emailEmploye || '' }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Erreur lors de la connexion');
 
     await setSetting('entreprise_mode', 'employe');
-    await setSetting('entreprise_role', posteChoisi);
+    const roleFinal = data.poste || posteChoisi || 'vendeur';
+    await setSetting('entreprise_role', roleFinal);
     await setSetting('entreprise_admin_email', data.admin_email);
     await setSetting('entreprise_employe_id', String(data.employe_id));
     await setSetting('entreprise_admin_whatsapp', data.admin_whatsapp || '');
     if (emailEmploye) await setSetting('email', emailEmploye);
     setMode('employe');
-    setRole(posteChoisi);
+    setRole(roleFinal);
     setAdminEmail(data.admin_email);
     if (data.devise) await forcerDeviseEmploye(data.devise);
     if (data.facture) await forcerFactureEmploye(data.facture);

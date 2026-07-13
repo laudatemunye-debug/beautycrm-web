@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { id: 'relances',   icon: '🔔', label: 'Relances' },
   { id: 'stock', icon: '📦', label: 'Stock' },
   { id: 'rapports', icon: '📊', label: 'Rapport' },
+  { id: 'comptabilite', icon: '📒', label: 'Comptabilité' },
   { id: 'parametres', icon: '⚙', label: 'Parametres' },
 ];
 
@@ -47,6 +48,7 @@ export const PAGE_TITLES = {
   relances:   'Relances',
   rapports:   'Rapports',
   parametres: 'Parametres',
+  comptabilite: 'Comptabilité & Paie',
   seminaires: 'Seminaires',
   rdvs:       'Tous les rendez-vous',
 };

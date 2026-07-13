@@ -20,6 +20,7 @@ const RdvsPage = lazy(() => import('./pages/RdvsPage').then(m => ({ default: m.R
 const RelancesPage = lazy(() => import('./pages/RelancesPage').then(m => ({ default: m.RelancesPage })));
 const RapportsPage = lazy(() => import('./pages/RapportsPage').then(m => ({ default: m.RapportsPage })));
 const ParametresPage = lazy(() => import('./pages/ParametresPage').then(m => ({ default: m.ParametresPage })));
+const ComptabilitePage = lazy(() => import('./pages/ComptabilitePage'));
 
 export default function App() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
@@ -60,6 +61,9 @@ export default function App() {
   useEffect(() => {
     if (!user) { setCheckingBlock(false); return; }
     setCheckingBlock(true);
+    // Timeout de securite : apres 6s on debloquer l'app quoi qu'il arrive
+    const timeout = setTimeout(() => setCheckingBlock(false), 6000);
+
     Promise.all([
       bizMode.checkSuspension().then((data) => {
         if (data.blocked && data.reason === 'supprimee') {
@@ -73,7 +77,7 @@ export default function App() {
           setSuspensionMotif(data.motif || '');
           setSuspensionContact(data.contact || null);
         }
-      }),
+      }).catch(() => {}),
       bizMode.checkEmployeStatus().then(({ revoked: r, entreprise_fermee, admin_whatsapp, motif, vole: v }) => {
         if (v) {
           setVole(true);
@@ -88,7 +92,7 @@ export default function App() {
           if (admin_whatsapp) setAdminWhatsapp(admin_whatsapp);
           else return getSetting('entreprise_admin_whatsapp').then(w => setAdminWhatsapp(w || ''));
         }
-      }),
+      }).catch(() => {}),
       bizMode.checkStatutPersonnel().then((data) => {
         if (data.blocked && data.reason === 'supprimee') {
           setSupprimePersonnel(true);
@@ -101,8 +105,8 @@ export default function App() {
           setSuspensionMotifPersonnel(data.motif || '');
           setSuspensionContactPersonnel(data.contact || null);
         }
-      })
-    ]).finally(() => setCheckingBlock(false));
+      }).catch(() => {})
+    ]).finally(() => { clearTimeout(timeout); setCheckingBlock(false); });
   }, [user]);
 
 
@@ -449,6 +453,7 @@ export default function App() {
       case 'relances':   return <RelancesPage />;
       case 'rapports':   return <RapportsPage />;
       case 'parametres': return <ParametresPage user={user} onLogout={() => { setUser(null); setLoginKey(k => k+1); setChecking(true); setTimeout(() => setChecking(false), 200); }} />;
+      case 'comptabilite': return <ComptabilitePage onNavigate={setPage} />;
       default:           return <DashboardPage onNavigate={setPage} />;
     }
   };
