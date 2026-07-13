@@ -55,6 +55,7 @@ export const PAGE_TITLES = {
 };
 
 const Drawer = ({ open, onClose, onNavigate, active, user }) => {
+
   const drawerRef = useRef(null);
   const [showParrain, setShowParrain] = useState(false);
   const [nbFilleuls, setNbFilleuls] = useState(0);
