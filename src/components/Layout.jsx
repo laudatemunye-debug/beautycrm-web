@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useEntreprise } from '../hooks/useEntreprise';
 import { C } from '../theme';
 import { useNetwork } from '../hooks/useNetwork';
 import { useUpdateSW } from '../hooks/useUpdateSW';
@@ -126,7 +127,7 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
         <div style={{ height: 1, backgroundColor: '#2A3050' }} />
 
         <div style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
-          {NAV_ITEMS.map(item => (
+          {NAV_ITEMS.filter(item => item.id !== 'comptabilite' || isEntrepriseMode).map(item => (
             <div
               key={item.id}
               onClick={() => { onNavigate(item.id); onClose(); }}
@@ -360,6 +361,8 @@ const BottomNav = ({ active, onNavigate, entrepriseMode }) => {
 };
 
 export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader, entrepriseMode }) => {
+  const { mode: bizModeVal } = useEntreprise();
+  const isEntrepriseMode = !!bizModeVal;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateAvailable, applyUpdate } = useUpdateSW();
 
