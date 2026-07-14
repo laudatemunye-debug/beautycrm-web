@@ -677,7 +677,8 @@ export default function ComptabilitePage({ onNavigate }) {
             const totalPassifCap = balance.filter(c=>c.type==='passif'||c.type==='capitaux').reduce((s,c)=>s+Math.abs(c.solde),0);
             const resultatNet = resultat ? resultat.resultat : 0;
             const totalPassifCapResultat = totalPassifCap + resultatNet;
-            const equilibre = Math.abs(totalActif - totalPassifCapResultat) < 1;
+            const capitalSaisi = balance.filter(c=>c.type==='capitaux').some(c=>Math.abs(c.solde) > 0);
+            const equilibre = capitalSaisi && Math.abs(totalActif - totalPassifCapResultat) < 1;
             return (
               <div style={{ marginTop:16 }}>
                 {resultatNet !== 0 && (
