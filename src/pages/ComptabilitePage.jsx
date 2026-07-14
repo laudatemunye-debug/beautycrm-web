@@ -16,7 +16,7 @@ import {
   today, getSetting
 } from '../db/index.js';
 
-const TABS = ['Écritures','Charges','Paie','Balance','Résultat','Périodes','Audit'];
+const TABS = ['Écritures','Charges','Paie','Balance','Résultat','Bilan','Périodes','Audit'];
 
 const sharePdf = async (doc, fileName, titre) => {
   const blob = doc.output('blob');
@@ -32,6 +32,58 @@ const printPdf = (doc) => {
   const url = URL.createObjectURL(blob);
   const w = window.open(url);
   if (w) w.onload = () => { w.print(); };
+};
+
+const buildBilanPdf = async (balance, devise) => {
+  const symbol = devise || 'FC';
+  const actifs = balance.filter(c => c.type === 'actif');
+  const passifs = balance.filter(c => c.type === 'passif');
+  const capitaux = balance.filter(c => c.type === 'capitaux');
+  const totalActif = actifs.reduce((s,c) => s + c.solde, 0);
+  const totalPassif = passifs.reduce((s,c) => s + Math.abs(c.solde), 0);
+  const totalCapitaux = capitaux.reduce((s,c) => s + c.solde, 0);
+  const hauteur = Math.max(150, 80 + (actifs.length + passifs.length + capitaux.length) * 8);
+  const doc = new jsPDF({ unit: 'mm', format: [120, hauteur] });
+  const left = 8, right = 112, mid = 60;
+  const ent = await buildEnteteCompta();
+  const numero = `BIL-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}`;
+  let y = addEntete(doc, ent, 'BILAN', numero, left, right);
+
+  // ACTIF
+  doc.setFontSize(9); doc.setFont(undefined, 'bold');
+  doc.text('ACTIF', left, y); y += 5;
+  doc.setFont(undefined, 'normal');
+  for (const c of actifs) {
+    doc.setFontSize(8);
+    doc.text(`${c.code} ${c.libelle}`, left+2, y);
+    doc.text(`${Math.round(c.solde)} ${symbol}`, mid-2, y, { align: 'right' }); y += 6;
+  }
+  doc.setFont(undefined, 'bold');
+  doc.text('Total Actif', left+2, y);
+  doc.text(`${Math.round(totalActif)} ${symbol}`, mid-2, y, { align: 'right' });
+  y += 8;
+
+  doc.setDrawColor(200); doc.line(left, y, right, y); y += 6;
+
+  // PASSIF + CAPITAUX
+  doc.setFont(undefined, 'bold');
+  doc.text('PASSIF & CAPITAUX', left, y); y += 5;
+  doc.setFont(undefined, 'normal');
+  for (const c of [...passifs, ...capitaux]) {
+    doc.setFontSize(8);
+    doc.text(`${c.code} ${c.libelle}`, left+2, y);
+    doc.text(`${Math.round(Math.abs(c.solde))} ${symbol}`, mid-2, y, { align: 'right' }); y += 6;
+  }
+  doc.setFont(undefined, 'bold');
+  doc.text('Total Passif+Capitaux', left+2, y);
+  doc.text(`${Math.round(totalPassif + totalCapitaux)} ${symbol}`, mid-2, y, { align: 'right' });
+  y += 10;
+
+  doc.setLineDashPattern([1,1], 0); doc.line(left, y, right, y); doc.setLineDashPattern([], 0); y += 5;
+  doc.setFontSize(6); doc.setFont(undefined, 'normal');
+  doc.text(`Emis le ${new Date().toLocaleString('fr-FR')}`, (left+right)/2, y, { align: 'center' }); y += 4;
+  doc.text('Designed by IZIsoft', (left+right)/2, y, { align: 'center' });
+  return doc;
 };
 
 const buildEnteteCompta = async () => {
@@ -580,6 +632,72 @@ export default function ComptabilitePage({ onNavigate }) {
               </div>
             </div>
           ))}
+        </Card>
+      )}
+
+      {/* BILAN */}
+      {tab === 'Bilan' && (
+        <Card>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <SectionTitle>Bilan</SectionTitle>
+            <div style={{ display:'flex', gap:6 }}>
+              <button onClick={async () => { const doc = await buildBilanPdf(balance, devise); doc.save(`bilan_${today()}.pdf`); }} style={{ fontSize:11, background: C.accent+'15', border:`1px solid ${C.accent}40`, borderRadius:8, padding:'5px 10px', color:C.accent, cursor:'pointer', fontWeight:600 }}>⬇ PDF</button>
+              <button onClick={async () => { const doc = await buildBilanPdf(balance, devise); printPdf(doc); }} style={{ fontSize:11, background:'#f5f5f5', border:'1px solid #ddd', borderRadius:8, padding:'5px 10px', color:'#555', cursor:'pointer', fontWeight:600 }}>🖨 Imprimer</button>
+              <button onClick={async () => { const doc = await buildBilanPdf(balance, devise); await sharePdf(doc, `bilan_${today()}.pdf`, 'Bilan'); }} style={{ fontSize:11, background:'#25D36620', border:'1px solid #25D36640', borderRadius:8, padding:'5px 10px', color:'#25D366', cursor:'pointer', fontWeight:600 }}>📤 Envoyer</button>
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            <div>
+              <div style={{ fontWeight:700, color:C.accent, marginBottom:8, fontSize:13 }}>ACTIF</div>
+              {balance.filter(c => c.type==='actif').map(c => (
+                <div key={c._id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'5px 0', borderBottom:`1px solid ${C.card_border}` }}>
+                  <span style={{ color:C.text_secondary }}>{c.code} {c.libelle}</span>
+                  <span style={{ fontWeight:600 }}>{fmt(c.solde)}</span>
+                </div>
+              ))}
+              <div style={{ fontWeight:800, marginTop:8, color:C.accent }}>
+                Total : {fmt(balance.filter(c=>c.type==='actif').reduce((s,c)=>s+c.solde,0))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontWeight:700, color:C.danger, marginBottom:8, fontSize:13 }}>PASSIF & CAPITAUX</div>
+              {balance.filter(c => c.type==='passif' || c.type==='capitaux').map(c => (
+                <div key={c._id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'5px 0', borderBottom:`1px solid ${C.card_border}` }}>
+                  <span style={{ color:C.text_secondary }}>{c.code} {c.libelle}</span>
+                  <span style={{ fontWeight:600 }}>{fmt(Math.abs(c.solde))}</span>
+                </div>
+              ))}
+              <div style={{ fontWeight:800, marginTop:8, color:C.danger }}>
+                Total : {fmt(balance.filter(c=>c.type==='passif'||c.type==='capitaux').reduce((s,c)=>s+Math.abs(c.solde),0))}
+              </div>
+            </div>
+          </div>
+          {(() => {
+            const totalActif = balance.filter(c=>c.type==='actif').reduce((s,c)=>s+c.solde,0);
+            const totalPassifCap = balance.filter(c=>c.type==='passif'||c.type==='capitaux').reduce((s,c)=>s+Math.abs(c.solde),0);
+            const resultatNet = resultat ? resultat.resultat : 0;
+            const totalPassifCapResultat = totalPassifCap + resultatNet;
+            const equilibre = Math.abs(totalActif - totalPassifCapResultat) < 1;
+            return (
+              <div style={{ marginTop:16 }}>
+                {resultatNet !== 0 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'5px 8px', background: resultatNet >= 0 ? '#c6f6d5' : '#fed7d7', borderRadius:8, marginBottom:8 }}>
+                    <span style={{ fontWeight:600 }}>+ Résultat de l'exercice</span>
+                    <span style={{ fontWeight:700, color: resultatNet >= 0 ? C.success : C.danger }}>{fmt(resultatNet)}</span>
+                  </div>
+                )}
+                <div style={{ background: C.card_border, borderRadius:10, padding:12, textAlign:'center' }}>
+                  <div style={{ fontSize:12, color:C.text_secondary, marginBottom:4 }}>Équilibre Actif = Passif+Capitaux+Résultat</div>
+                  <div style={{ fontSize:16, fontWeight:800, color: equilibre ? C.success : C.danger }}>
+                    {equilibre ? '✓ Équilibré' : '⚠ Déséquilibré'}
+                  </div>
+                  <div style={{ fontSize:12, color:C.text_secondary, marginTop:4 }}>
+                    Actif: {fmt(totalActif)} | Passif+Cap+Résultat: {fmt(totalPassifCapResultat)}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </Card>
       )}
 
