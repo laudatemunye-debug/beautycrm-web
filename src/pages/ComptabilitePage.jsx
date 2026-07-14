@@ -688,8 +688,8 @@ export default function ComptabilitePage({ onNavigate }) {
                 )}
                 <div style={{ background: C.card_border, borderRadius:10, padding:12, textAlign:'center' }}>
                   <div style={{ fontSize:12, color:C.text_secondary, marginBottom:4 }}>Équilibre Actif = Passif+Capitaux+Résultat</div>
-                  <div style={{ fontSize:16, fontWeight:800, color: equilibre ? C.success : C.danger }}>
-                    {equilibre ? '✓ Équilibré' : '⚠ Déséquilibré'}
+                  <div style={{ fontSize:16, fontWeight:800, color: equilibre ? C.success : C.warning }}>
+                    {equilibre ? '✓ Équilibré' : '⚠ Capital non saisi — saisir le capital initial dans Écritures'}
                   </div>
                   <div style={{ fontSize:12, color:C.text_secondary, marginTop:4 }}>
                     Actif: {fmt(totalActif)} | Passif+Cap+Résultat: {fmt(totalPassifCapResultat)}
