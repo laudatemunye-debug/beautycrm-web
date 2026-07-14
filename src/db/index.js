@@ -435,7 +435,7 @@ export const importAllData = async (data) => {
 };
 
 export const migrerVentesVersEcritures = async () => {
-  const deja = await getSetting('migration_ecritures_v1');
+  const deja = await getSetting('migration_ecritures_v2');
   if (deja === 'done') return;
   try {
     await initPlanComptableDefaut();
@@ -546,7 +546,7 @@ export const migrerVentesVersEcritures = async () => {
         }
       }
     }
-    await setSetting('migration_ecritures_v1', 'done');
+    await setSetting('migration_ecritures_v2', 'done');
   } catch(_) {}
 };
 
