@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { C, CANAL_COLORS } from '../theme';
 import { getClients, getVentes, getApprovisionnements, getCredits, getSetting, today } from '../db/index';
 import { Card, SectionTitle, Badge, fmtMoney, Modal } from '../components/UI';
@@ -6,26 +6,77 @@ import { useDevise } from '../hooks/useDevise';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const buildPDFDoc = (title, columns, rows, totalGeneral, devise) => {
+const buildPDFDoc = (title, columns, rows, totalGeneral, devise, entete) => {
   const doc = new jsPDF();
-  doc.setFontSize(16);
-  doc.text(title, 14, 16);
-  doc.setFontSize(10);
-  doc.text('Genere le ' + new Date().toLocaleDateString('fr-FR'), 14, 22);
+  let y = 14;
+
+  // Logo
+  if (entete?.logo) {
+    try { doc.addImage(entete.logo, 'PNG', 150, 8, 40, 20); } catch(_) {}
+  }
+
+  // Nom entreprise
+  doc.setFontSize(13);
+  doc.setFont(undefined, 'bold');
+  doc.text(entete?.nom || 'BeautyCRM', 14, y);
+  y += 6;
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(100);
+  if (entete?.adresse) { doc.text(entete.adresse, 14, y); y += 5; }
+  if (entete?.telephone) { doc.text('Tel : ' + entete.telephone, 14, y); y += 5; }
+
+  // Séparateur
+  doc.setDrawColor(200);
+  doc.line(14, y, 196, y);
+  y += 6;
+
+  // Titre rapport
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(40);
+  doc.text(title, 14, y);
+  y += 6;
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(120);
+  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' }), 14, y);
+  if (entete?.username) doc.text('Par : ' + entete.username, 196, y, { align: 'right' });
+  y += 8;
+
+  doc.setTextColor(0);
+
   autoTable(doc, {
-    startY: 28,
+    startY: y,
     head: [columns],
     body: rows,
     styles: { fontSize: 9 },
-    headStyles: { fillColor: [61, 90, 254] },
+    headStyles: { fillColor: [64, 64, 64] },
+    alternateRowStyles: { fillColor: [248, 248, 248] },
+    margin: { left: 14, right: 14 },
   });
+
   if (totalGeneral !== undefined) {
-    const y = doc.lastAutoTable.finalY + 6;
+    const fy = doc.lastAutoTable.finalY + 6;
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
-    doc.text('Total general :', 120, y);
-    doc.text(String(totalGeneral) + ' ' + (devise || '$'), 170, y, { align: 'right' });
+    doc.text('Total général :', 120, fy);
+    doc.text(String(totalGeneral) + ' ' + (devise || '$'), 196, fy, { align: 'right' });
   }
+
+  // Pied de page
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(150);
+    doc.text('BeautyCRM — IZIsoft', 14, 290);
+    doc.text(`Page ${i} / ${pageCount}`, 196, 290, { align: 'right' });
+  }
+
   return doc;
 };
 
@@ -94,6 +145,13 @@ export const RapportsPage = () => {
     const username = await getSetting('username') || '';
     return { nom, adresse, telephone, logo, username, genereeLe: new Date().toLocaleString('fr-FR') };
   };
+
+  const reloadApercu = useCallback(() => {
+    if (!apercu) return;
+    if (apercu.type === 'ventes') rapportVentes();
+    else if (apercu.type === 'approv') rapportApprovisionnements();
+    else rapportCredits();
+  }, [apercu]);
 
   const rapportVentes = async () => {
     const ventes = await getVentes();
@@ -278,17 +336,25 @@ export const RapportsPage = () => {
       ? ['Date','Produit','Qte',"Prix d'achat",'Total']
       : ['Date','Client','Produit','Total','Restant','Statut','Historique'];
 
+    const rowSpanMap = (() => {
+      const map = {};
+      apercu.lignes.forEach((l, i) => {
+        const key = l.date + '|' + l.client;
+        if (!map[key]) map[key] = { count: 0, firstIndex: i };
+        map[key].count += 1;
+      });
+      return map;
+    })();
+
     const renderRow = (l, i) => {
       if (apercu.type === 'ventes') {
-        const lignes = apercu.lignes;
         const key = l.date + '|' + l.client;
-        const prevKey = i > 0 ? lignes[i-1].date + '|' + lignes[i-1].client : null;
-        const isSameGroup = key === prevKey;
-        const rowSpan = !isSameGroup ? lignes.filter(x => x.date + '|' + x.client === key).length : 0;
+        const isFirst = rowSpanMap[key].firstIndex === i;
+        const span = rowSpanMap[key].count;
         return (
           <tr key={i} style={{ backgroundColor: i%2===0 ? '#fff' : '#fafafa' }}>
-            {!isSameGroup && <td style={{...tdS, verticalAlign:'middle'}} rowSpan={rowSpan}>{l.date}</td>}
-            {!isSameGroup && <td style={{...tdS, fontWeight:600, verticalAlign:'middle'}} rowSpan={rowSpan}>{l.client}</td>}
+            {isFirst && <td style={{...tdS, verticalAlign:'middle'}} rowSpan={span}>{l.date}</td>}
+            {isFirst && <td style={{...tdS, fontWeight:600, verticalAlign:'middle'}} rowSpan={span}>{l.client}</td>}
             <td style={tdS}>{l.produit}</td>
             <td style={{...tdS, textAlign:'center'}}>{l.quantite}</td>
             <td style={{...tdS, textAlign:'right', fontFamily:'monospace'}}>{fmtMoney(l.prix_vente)}</td>
@@ -331,7 +397,7 @@ export const RapportsPage = () => {
       return apercu.lignes.map(l => [l.date, l.client, l.produit, l.montant_total, l.montant_restant, l.statut, l.historique||'']);
     };
 
-    const buildApercuDoc = () => buildPDFDoc(apercu.titre, cols, getApercuRows(), apercu.totalGeneral, devise);
+    const buildApercuDoc = () => buildPDFDoc(apercu.titre, cols, getApercuRows(), apercu.totalGeneral, devise, apercu.entete);
     const apercuFilename = () => apercu.titre.toLowerCase().replace(/ /g, '_') + '.pdf';
 
     const handleSavePdf = () => {
@@ -385,7 +451,7 @@ export const RapportsPage = () => {
           ].map(f => (
             <button key={f.key} onClick={() => {
                 setFilterPeriod(f.key); setDateFrom(''); setDateTo('');
-                setTimeout(() => apercu.type==='ventes' ? rapportVentes() : apercu.type==='approv' ? rapportApprovisionnements() : rapportCredits(), 0);
+                reloadApercu();
               }}
               style={{ padding:'6px 14px', borderRadius:20, border:'1.5px solid '+(filterPeriod===f.key&&!dateFrom?'#404040':'#ccc'),
                 backgroundColor: filterPeriod===f.key&&!dateFrom ? '#404040' : '#fff',
@@ -404,13 +470,13 @@ export const RapportsPage = () => {
           <span style={{ fontSize:12, color:'#666', fontWeight:600 }}>au</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
             style={{ padding:'5px 8px', borderRadius:8, border:'1px solid #ccc', fontSize:12 }} />
-          <button onClick={() => apercu.type==='ventes' ? rapportVentes() : apercu.type==='approv' ? rapportApprovisionnements() : rapportCredits()}
+          <button onClick={reloadApercu}
             style={{ padding:'5px 14px', borderRadius:8, border:'none', backgroundColor:'#404040', color:'#fff', fontSize:12, cursor:'pointer', fontWeight:700 }}>
             OK
           </button>
           {(dateFrom || dateTo) && (
             <button onClick={() => { setDateFrom(''); setDateTo('');
-                setTimeout(() => apercu.type==='ventes' ? rapportVentes() : apercu.type==='approv' ? rapportApprovisionnements() : rapportCredits(), 0); }}
+                reloadApercu(); }}
               style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #ccc', backgroundColor:'#fff', color:'#666', fontSize:12, cursor:'pointer' }}>
               ✕ Réinitialiser
             </button>
