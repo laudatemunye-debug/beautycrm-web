@@ -56,6 +56,7 @@ export const DEVISES = [
   { code: 'BIF', symbol: 'FBu',  label: 'Franc burundais (FBu)' },
   { code: 'EGP', symbol: 'E£',   label: 'Livre égyptienne (E£)' },
   { code: 'ETB', symbol: 'Br',   label: 'Birr éthiopien (Br)' },
+  { code: 'GNF', symbol: 'FG',   label: 'Franc guinéen (FG)' },
   { code: 'GHS', symbol: 'GH₵',  label: 'Cedi ghanéen (GH₵)' },
   { code: 'KES', symbol: 'KSh',  label: 'Shilling kenyan (KSh)' },
   { code: 'MAD', symbol: 'DH',   label: 'Dirham marocain (DH)' },
