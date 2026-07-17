@@ -1,13 +1,22 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'beautycrm';
 const DB_VERSION = 8;
 const STORES = ['clients','produits','ventes','prospects','rdvs','seminaires','participants','settings','approvisionnements','credits','factures','factures_credit','plan_comptable','ecritures','charges','employes','bulletins_paie','periodes_comptables','audit_log'];
 
+const getDbName = () => {
+  const activeId = localStorage.getItem('beautycrm_active_account');
+  return activeId ? `beautycrm_${activeId}` : 'beautycrm';
+};
+
 let _db = null;
+let _dbName = null;
+
 const getDB = async () => {
-  if (_db) return _db;
-  _db = await openDB(DB_NAME, DB_VERSION, {
+  const currentName = getDbName();
+  if (_db && _dbName === currentName) return _db;
+  if (_db) { _db.close(); _db = null; }
+  _dbName = currentName;
+  _db = await openDB(currentName, DB_VERSION, {
     upgrade(db, oldVersion, newVersion) {
       for (const store of STORES) {
         if (!db.objectStoreNames.contains(store)) {
@@ -551,6 +560,11 @@ export const migrerVentesVersEcritures = async () => {
 };
 
 export const resetDB = () => { try { _db?.close(); } catch(_) {} _db = null; };
+
+export const deleteAccountDB = async (accountId) => {
+  const name = accountId ? `beautycrm_${accountId}` : 'beautycrm';
+  await indexedDB.deleteDatabase(name);
+};
 
 export const clearAllData = async () => {
   const database = await getDB();

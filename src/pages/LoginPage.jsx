@@ -3,6 +3,7 @@ import { useEntreprise } from '../hooks/useEntreprise';
 
 import { C, SECURITY_QUESTIONS, DEVISES } from '../theme';
 import { getSetting, setSetting, sha256, clearAllData } from '../db/index';
+import { registerCurrentAccount } from '../hooks/useAccounts';
 import { trackUser } from '../hooks/useTracker';
 import { FieldInput, PrimaryBtn, GhostBtn, PickerSelect } from '../components/UI';
 
@@ -117,7 +118,10 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       if (storedNom && nom.trim().toLowerCase() !== storedNom.toLowerCase()) { setError("Nom incorrect."); return; }
       const hash = await sha256(pw);
       if (hash !== stored) { setError('Mot de passe incorrect.'); return; }
-      onSuccess(await getSetting('username') || 'Utilisateur');
+      const __nom = await getSetting('username') || 'Utilisateur';
+      const __email = await getSetting('email') || '';
+      await registerCurrentAccount(__nom, __email);
+      onSuccess(__nom);
     } catch(e) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -183,6 +187,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       try {
         await bizMode.syncEntreprise();
       } catch (_) {}
+      await registerCurrentAccount(setupNom.trim(), email.trim());
       window.location.reload();
     } catch (e) {
       setJoinAutoError(e.message || 'Erreur');
@@ -221,6 +226,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
       await setSetting('email', email);
       const synced = await trackUser({ nom: setupNom.trim(), email, telephone: indicatif+telephone, pays, ville, entreprise, role, devise });
       await setSetting('izi360_synced', synced ? '1' : '0');
+      await registerCurrentAccount(setupNom.trim(), email.trim());
       const found = DEVISES.find(d => d.label === devise);
       if (found) window.__DEVISE_SYMBOL__ = found.symbol;
       if (usePassword) {
@@ -303,6 +309,7 @@ export const LoginPage = ({ onSuccess, googleConnect, downloadBackup, googleUser
               try {
                 await bizMode.rejoindreEntreprise(codeEntreprise, nomEmploye.trim(), posteEmploye, email.trim());
                 await setSetting('username', nomEmploye.trim());
+                await registerCurrentAccount(nomEmploye.trim(), '');
                 onSuccess(nomEmploye.trim());
               } catch(e) { setJoinError(e.message); }
               finally { setJoinLoading(false); }

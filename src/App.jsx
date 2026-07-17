@@ -9,6 +9,8 @@ import { useEntreprise } from './hooks/useEntreprise';
 import { useGoogle } from "./hooks/useGoogle";
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
+import { AccountSelectorPage } from './pages/AccountSelectorPage';
+import { getAccounts, setActiveAccountId, clearActiveAccountId, generateAccountId, ensureDefaultAccountRegistered } from './hooks/useAccounts';
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
 const ContactsPage = lazy(() => import('./pages/ContactsPage').then(m => ({ default: m.ContactsPage })));
@@ -27,6 +29,31 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [checking, setChecking] = useState(true);
+  const [showSelector, setShowSelector] = useState(false);
+  const [accountsChecked, setAccountsChecked] = useState(false);
+
+  useEffect(() => {
+    ensureDefaultAccountRegistered().then(() => {
+      if (getAccounts().length > 1) setShowSelector(true);
+      setAccountsChecked(true);
+    });
+  }, []);
+
+  const handleAccountSelected = (acc) => {
+    setActiveAccountId(acc.id);
+    setShowSelector(false);
+    setUser(null);
+    setLoginKey(k => k + 1);
+    setChecking(true);
+  };
+
+  const handleAddAccount = () => {
+    setActiveAccountId(generateAccountId());
+    setShowSelector(false);
+    setUser(null);
+    setLoginKey(k => k + 1);
+    setChecking(true);
+  };
   const [loginKey, setLoginKey] = useState(0);
   const [canDismiss, setCanDismiss] = useState(false);
   const [countdown, setCountdown] = useState(10);
@@ -222,6 +249,17 @@ export default function App() {
       syncIfNeeded(getSetting, setSetting);
     }
   }, [isOnline, user]);
+
+  if (!accountsChecked) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1F36' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>💄</div>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>BeautyCRM</div>
+      </div>
+    </div>
+  );
+
+  if (showSelector) return <AccountSelectorPage onSelect={handleAccountSelected} onAddAccount={handleAddAccount} />;
 
   if (checking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1F36' }}>
@@ -454,7 +492,7 @@ export default function App() {
       case 'rdvs':       return <RdvsPage />;
       case 'relances':   return <RelancesPage />;
       case 'rapports':   return <RapportsPage />;
-      case 'parametres': return <ParametresPage user={user} onLogout={() => { setUser(null); setLoginKey(k => k+1); setChecking(true); setTimeout(() => setChecking(false), 200); }} />;
+      case 'parametres': return <ParametresPage user={user} onLogout={() => { setUser(null); clearActiveAccountId(); setShowSelector(true); }} />;
       case 'comptabilite': return <ComptabilitePage onNavigate={setPage} />;
       default:           return <DashboardPage onNavigate={setPage} />;
     }
