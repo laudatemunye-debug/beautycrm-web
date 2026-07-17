@@ -61,8 +61,10 @@ export default function App() {
   useEffect(() => {
     if (!user) { setCheckingBlock(false); return; }
     setCheckingBlock(true);
-    // Timeout de securite : apres 6s on debloquer l'app quoi qu'il arrive
-    const timeout = setTimeout(() => setCheckingBlock(false), 6000);
+    // Si pas de connexion internet, bypass immediat
+    if (!navigator.onLine) { setCheckingBlock(false); return; }
+    // Timeout de securite : apres 3s on debloque l'app quoi qu'il arrive
+    const timeout = setTimeout(() => setCheckingBlock(false), 3000);
 
     Promise.all([
       bizMode.checkSuspension().then((data) => {
