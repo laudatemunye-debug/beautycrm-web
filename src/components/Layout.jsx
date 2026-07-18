@@ -54,8 +54,8 @@ export const PAGE_TITLES = {
   rdvs:       'Tous les rendez-vous',
 };
 
-const Drawer = ({ open, onClose, onNavigate, active, user }) => {
-  const { mode: bizModeVal } = useEntreprise();
+const Drawer = ({ open, onClose, onNavigate, active, user, reloadKey }) => {
+  const { mode: bizModeVal } = useEntreprise(reloadKey);
   const isEntrepriseMode = !!bizModeVal;
 
   const drawerRef = useRef(null);
@@ -364,15 +364,15 @@ const BottomNav = ({ active, onNavigate, entrepriseMode }) => {
   );
 };
 
-export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader, entrepriseMode }) => {
-  const { mode: bizModeVal } = useEntreprise();
+export const Layout = ({ page, onNavigate, user, children, autoSyncing, hideHeader, entrepriseMode, reloadKey }) => {
+  const { mode: bizModeVal } = useEntreprise(reloadKey);
   const isEntrepriseMode = !!bizModeVal;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateAvailable, applyUpdate } = useUpdateSW();
 
   return (
     <div style={{ backgroundColor: C.page_bg, minHeight: '100vh', maxWidth: '100%', margin: '0 auto', position: 'relative' }}>
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={onNavigate} active={page} user={user} />
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onNavigate={onNavigate} active={page} user={user} reloadKey={reloadKey} />
       {!hideHeader && <Header title={PAGE_TITLES[page]} onMenu={() => setDrawerOpen(true)} user={user} />}
 
       {autoSyncing && (
