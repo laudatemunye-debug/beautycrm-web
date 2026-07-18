@@ -5,7 +5,7 @@ import { DEVISES } from '../theme';
 const IZI360_URL = 'https://izi360-backend.vercel.app/api/beautycrm/entreprise';
 const IZI360_SECRET = 'beautycrm_izi360_2026';
 
-export const useEntreprise = () => {
+export const useEntreprise = (reloadKey = 0) => {
   const [mode, setMode] = useState(null); // 'admin' | 'employe' | null
   const [role, setRole] = useState(null); // 'admin' | 'vendeur' | 'gestionnaire'
   const [code, setCode] = useState(null);
@@ -16,8 +16,14 @@ export const useEntreprise = () => {
   const [driveConnecte, setDriveConnecte] = useState(false);
 
   useEffect(() => {
+    setMode(null);
+    setRole(null);
+    setCode(null);
+    setCodeExpiry(null);
+    setEmployes([]);
+    setAdminEmail(null);
     load();
-  }, []);
+  }, [reloadKey]);
 
   const load = async () => {
     const [m, r, c, exp, adminEm] = await Promise.all([

@@ -69,7 +69,7 @@ export default function App() {
   useDevise();
   const { annonce, dismiss } = useAnnonces();
   const { connect: googleConnect, downloadBackup, googleUser: gUser, disconnect: googleDisconnect } = useGoogle();
-  const bizMode = useEntreprise();
+  const bizMode = useEntreprise(loginKey);
   const [revoked, setRevoked] = useState(false);
   const [adminWhatsapp, setAdminWhatsapp] = useState('');
   const [motifRevocation, setMotifRevocation] = useState('');
