@@ -61,7 +61,8 @@ const Drawer = ({ open, onClose, onNavigate, active, user }) => {
   const drawerRef = useRef(null);
   const [showParrain, setShowParrain] = useState(false);
   const [nbFilleuls, setNbFilleuls] = useState(0);
-  const code = localStorage.getItem('beautycrm_referral_code') || '';
+  const activeId = localStorage.getItem('beautycrm_active_account') || 'default';
+  const code = localStorage.getItem('beautycrm_referral_code_' + activeId) || localStorage.getItem('beautycrm_referral_code') || '';
   const link = window.location.origin + (code ? '?ref=' + code : '');
 
   useEffect(() => {

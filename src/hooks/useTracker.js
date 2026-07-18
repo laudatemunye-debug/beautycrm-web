@@ -50,6 +50,8 @@ export const trackUser = async (data) => {
     const d = await r.json()
     // Sauvegarder le code de parrainage de l'utilisateur
     if (d.user && d.user.referral_code) {
+      const activeId = localStorage.getItem('beautycrm_active_account') || 'default';
+      localStorage.setItem('beautycrm_referral_code_' + activeId, d.user.referral_code);
       localStorage.setItem('beautycrm_referral_code', d.user.referral_code)
     }
   } catch(_) {
