@@ -34,7 +34,14 @@ export default function App() {
 
   useEffect(() => {
     ensureDefaultAccountRegistered().then(() => {
-      if (getAccounts().length > 1) setShowSelector(true);
+      const accounts = getAccounts();
+      if (accounts.length > 1) {
+        // Plusieurs comptes -> afficher le selecteur
+        setShowSelector(true);
+      } else if (accounts.length === 1) {
+        // Un seul compte -> l'activer automatiquement sans passer par le selecteur
+        setActiveAccountId(accounts[0].id);
+      }
       setAccountsChecked(true);
     });
   }, []);
